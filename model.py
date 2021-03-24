@@ -73,7 +73,7 @@ class LSTM(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, time_steps, frames, tasks, image_resolution, device):
+    def __init__(self, time_steps, frames, tasks, image_resolution, device, decoder):
         super(Model, self).__init__()
         self.encoder = Encoder().to(device)
         self.mlp = MLP(input_size=image_resolution*frames, output_size=image_resolution).to(device)
@@ -85,8 +85,7 @@ class Model(nn.Module):
         self.image_resolution = image_resolution
         self.device = device
         self.loss = nn.MSELoss()
-        self.decoder = Decoder().to(device)
-        # self.h = torch.zeros(self.T, self.image_resolution)
+        self.decoder = decoder
 
     # return the prediction of T future rewards given N conditioning frames
     def forward(self, obs):
@@ -102,7 +101,7 @@ class Model(nn.Module):
 
         z_mlp = self.mlp(z.flatten()) # (64,)
         h = self.lstm(z_mlp) # (T, 64)
-        # self.h = torch.add(self.h, h)
+        decoded_img = self.decoder(z_mlp.detach())
                 
         # then feed h to each reward head to predict the reward of all time steps for every task
         reward_predicted = []
@@ -113,7 +112,7 @@ class Model(nn.Module):
             r_t = reward_head(h) # (T,) 
             reward_predicted.append(r_t)
         reward_predicted = torch.stack(reward_predicted, dim=0) # should be (K, T)
-        return reward_predicted
+        return reward_predicted, decoded_img
                        
     def criterion(self, reward_predicted, reward_targets):
         reward_predicted = reward_predicted.squeeze()
@@ -130,11 +129,6 @@ class Model(nn.Module):
             decoded_img = self.decoder(z_t).squeeze()
             output.append(decoded_img.detach().numpy())
 
-        # output = []
-        # for t in range(self.T):
-        #     decoded_img = self.decoder(self.h[t]).squeeze()
-        #     output.append(decoded_img.detach().numpy())
-        # output = torch.stack(output, dim=0) # (T, 64, 64)
         return np.array(output)
 
 
