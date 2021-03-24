@@ -100,8 +100,9 @@ class Model(nn.Module):
         z = torch.stack(z, dim=0) # (N, 64)
 
         z_mlp = self.mlp(z.flatten()) # (64,)
+        z_mlp_copy = z_mlp.clone().detach()
         h = self.lstm(z_mlp) # (T, 64)
-        decoded_img = self.decoder(z_mlp.detach())
+        decoded_img = self.decoder(z_mlp_copy)
                 
         # then feed h to each reward head to predict the reward of all time steps for every task
         reward_predicted = []
