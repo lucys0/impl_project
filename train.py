@@ -16,16 +16,17 @@ from sprites_env.envs import sprites
 from torchvision.utils import save_image
 
 
-def train(model, obs, reward_targets, optimizer, decoder_optimizer):
+def train(model, obs, reward_targets, optimizer, decoder_optimizer, decoder):
     with torch.autograd.set_detect_anomaly(True):
         optimizer.zero_grad()
-        reward_predicted, decoded_img = model(obs)
+        reward_predicted, z_mlp_copy = model(obs)
         loss = model.criterion(reward_predicted, reward_targets)
         loss.backward(retain_graph=True)
         optimizer.step()
 
         decoder_optimizer.zero_grad()
-        decoded_img = decoded_img * 255
+        # decoded_img = decoded_img * 255.0
+        decoded_img = decoder(z_mlp_copy) * 255.0
         decoded_loss = model.criterion(decoded_img, obs[-1])
         decoded_loss.backward()
         decoder_optimizer.step()
@@ -112,7 +113,7 @@ def main():
             for j, reward_targets in enumerate (batch['rewards']['vertical_position']): # change when needed
                 for k in range(t-f):
                     obs = data[i][j][k] # (f+1, 64, 64)               
-                    loss, decoded_img = train(model, obs, reward_targets, optimizer, decoder_optimizer) # here it's assumed that there's only one task - how to fix it?
+                    loss, decoded_img = train(model, obs, reward_targets, optimizer, decoder_optimizer, decoder) # here it's assumed that there's only one task - how to fix it?
                     running_loss += loss
             # average_loss_traj += loss
         

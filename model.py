@@ -100,9 +100,9 @@ class Model(nn.Module):
         z = torch.stack(z, dim=0) # (N, 64)
 
         z_mlp = self.mlp(z.flatten()) # (64,)
-        z_mlp_copy = z_mlp.clone().detach()
+        z_mlp_copy = z_mlp.detach().clone()
         h = self.lstm(z_mlp) # (T, 64)
-        decoded_img = self.decoder(z_mlp_copy)
+        # decoded_img = self.decoder(z_mlp_copy)
                 
         # then feed h to each reward head to predict the reward of all time steps for every task
         reward_predicted = []
@@ -113,7 +113,7 @@ class Model(nn.Module):
             r_t = reward_head(h) # (T,) 
             reward_predicted.append(r_t)
         reward_predicted = torch.stack(reward_predicted, dim=0) # should be (K, T)
-        return reward_predicted, decoded_img
+        return reward_predicted, z_mlp_copy
                        
     def criterion(self, reward_predicted, reward_targets):
         reward_predicted = reward_predicted.squeeze()
@@ -153,6 +153,7 @@ class Decoder(nn.Module):
         x = self.tfc(x).view(1, 128, 1, 1)
         for i in range(6):
             x = torch.relu(self.tconvs[i](x))
-       
+            # print(x.shape)
+
         # output: (1, 1, 64, 64)
         return x
