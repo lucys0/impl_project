@@ -23,6 +23,7 @@ class MovingSpriteDataset(Dataset):
 
         data_dict = AttrDict()
         data_dict.images = traj.images[:, None].repeat(3, axis=1).astype(np.float32) / (255./2) - 1.0       
+        # data_dict.images = traj.images[:, None].repeat(3, axis=1).astype(np.float32)
         data_dict.states = traj.states
         data_dict.shape_idxs = traj.shape_idxs
         data_dict.rewards = traj.rewards

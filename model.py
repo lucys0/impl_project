@@ -23,7 +23,7 @@ class Encoder(nn.Module):
     # x is the observation at one time step
     def forward(self, x, detach=False):
         for i in range(6):
-            x = torch.relu(self.convs[i](x))
+            x = torch.tanh(self.convs[i](x))
         x = self.fc(x.squeeze())
 
         # freeze the encoder
@@ -39,13 +39,11 @@ class MLP(nn.Module):
         self.fc1 = nn.Linear(input_size, hidden_units)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(hidden_units, output_size)
-        # self.tanh = nn.Tanh() # range: -1 to 1
-        # look at the reward function for the env
-        # if range = positive -> relu
+        self.tanh = nn.Tanh()
     
     def forward(self, x):
         hidden_layer = self.relu(self.fc1(x))
-        output_layer = self.relu(self.fc2(hidden_layer))
+        output_layer = self.tanh(self.fc2(hidden_layer))
         return output_layer
 
 
@@ -73,7 +71,7 @@ class LSTM(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, time_steps, frames, tasks, image_resolution, device, decoder):
+    def __init__(self, time_steps, frames, tasks, image_resolution, device):
         super(Model, self).__init__()
         self.encoder = Encoder().to(device)
         self.mlp = MLP(input_size=image_resolution*frames, output_size=image_resolution).to(device)
@@ -85,7 +83,7 @@ class Model(nn.Module):
         self.image_resolution = image_resolution
         self.device = device
         self.loss = nn.MSELoss()
-        self.decoder = decoder
+        self.decoder = Decoder().to(device)
 
     # return the prediction of T future rewards given N conditioning frames
     def forward(self, obs):
@@ -100,9 +98,8 @@ class Model(nn.Module):
         z = torch.stack(z, dim=0) # (N, 64)
 
         z_mlp = self.mlp(z.flatten()) # (64,)
-        z_mlp_copy = z_mlp.detach().clone()
         h = self.lstm(z_mlp) # (T, 64)
-        # decoded_img = self.decoder(z_mlp_copy)
+        z_mlp_copy = z_mlp.detach().clone()
                 
         # then feed h to each reward head to predict the reward of all time steps for every task
         reward_predicted = []
@@ -120,18 +117,15 @@ class Model(nn.Module):
         assert reward_predicted.shape == reward_targets.shape
         return self.loss(reward_predicted, reward_targets)
 
-    def decode(self, traj_images):
+    def test_decode(self, traj_images):
         output = []
         for t in range(self.T):
-            # obs corresponds to the observation at N conditioning frames: (N, 64, 64)
-            # so obs[frame] is the observation at the current frame, represented as a (64, 64) tensor
             # the input to encoder should be in (1, 1, 64, 64)
-            z_t = self.encoder(traj_images[t].unsqueeze(dim=0).unsqueeze(dim=0)) #tensor(64,)
+            z_t = self.encoder(traj_images[t].unsqueeze(dim=0).unsqueeze(dim=0), detach=True) #tensor(64,)
             decoded_img = self.decoder(z_t).squeeze()
             output.append(decoded_img.detach().numpy())
 
         return np.array(output)
-
 
 # add a detached decoder network and train the model on a single reward
 class Decoder(nn.Module):
@@ -152,8 +146,7 @@ class Decoder(nn.Module):
     def forward(self, x):
         x = self.tfc(x).view(1, 128, 1, 1)
         for i in range(6):
-            x = torch.relu(self.tconvs[i](x))
-            # print(x.shape)
+            x = torch.tanh(self.tconvs[i](x))
 
         # output: (1, 1, 64, 64)
         return x
