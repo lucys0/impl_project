@@ -124,7 +124,7 @@ def main():
         train_loss.append(running_loss)
 
         if epoch % 5 == 0:
-            # print("----", decoded_img.max())
+            print("----", decoded_img.max())
             # print("obs[-1]: ", obs[-1].max(), "||", obs[-1].min())
             # print("decoded_img: ", decoded_img.max(), "||", decoded_img.min())
             
