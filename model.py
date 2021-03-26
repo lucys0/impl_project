@@ -99,7 +99,7 @@ class Model(nn.Module):
 
         z_mlp = self.mlp(z.flatten()) # (64,)
         h = self.lstm(z_mlp) # (T, 64)
-        z_mlp_copy = z_mlp.detach().clone()
+        # z_mlp_copy = z_mlp.detach().clone()
                 
         # then feed h to each reward head to predict the reward of all time steps for every task
         reward_predicted = []
@@ -110,7 +110,7 @@ class Model(nn.Module):
             r_t = reward_head(h) # (T,) 
             reward_predicted.append(r_t)
         reward_predicted = torch.stack(reward_predicted, dim=0) # should be (K, T)
-        return reward_predicted, z_mlp_copy
+        return reward_predicted
                        
     def criterion(self, reward_predicted, reward_targets):
         reward_predicted = reward_predicted.squeeze()

@@ -21,7 +21,7 @@ import time
 
 def train(model, obs, reward_targets, optimizer, decoder_optimizer):
     optimizer.zero_grad()
-    reward_predicted, z_mlp_copy = model(obs)
+    reward_predicted = model(obs)
     loss = model.criterion(reward_predicted, reward_targets)
     # print("reward_predicted: ", reward_predicted.mean())
     # print("reward_targets: ", reward_targets.mean())
@@ -29,12 +29,23 @@ def train(model, obs, reward_targets, optimizer, decoder_optimizer):
     optimizer.step()
 
     decoder_optimizer.zero_grad()
-    decoded_img = model.decoder(z_mlp_copy).squeeze()
+    encoded_img = model.encoder(obs[-1][None, None, :].detach().clone())
+    decoded_img = model.decoder(encoded_img).squeeze()
     decoded_loss = model.criterion(decoded_img, obs[-1])
     decoded_loss.backward()
     decoder_optimizer.step()
 
     return loss.item(), decoded_img[None, :], decoded_loss.item()
+
+# def test(model, states, decoder_optimizer, obs):
+#     states = 
+#     decoded_img = model.decoder(states)
+#     decoder_optimizer.zero_grad()
+#     decoded_loss = model.criterion(decoded_img, obs[-1])
+#     decoded_loss.backward()
+#     decoder_optimizer.step()
+
+#     return decoded_loss, decoded_img
 
 # dataloader
 def dataloader(image_resolution, time_steps, batch_size):
@@ -53,7 +64,7 @@ def dataloader(image_resolution, time_steps, batch_size):
     cv2.imwrite("ground_truth.png", img[0].transpose(1, 2, 0))
 
     dataset = moving_sprites.MovingSpriteDataset(spec)
-    dl = DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    dl = DataLoader(dataset, batch_size=batch_size, shuffle=False)
     return dl, torch.from_numpy(traj.images.astype(np.float32) / (255./2) - 1.0), img[0]
 
 # argument parser
@@ -152,6 +163,20 @@ def main():
             writer.add_image('decoded_epoch{}'.format(epoch), decoded_img.to(torch.uint8))
             # input = (obs[-1][None, :] + 1.0) * 255.0 / 2.0
             # writer.add_image('input_epoch{}'.format(epoch), input.to(torch.uint8))
+
+    # for epoch in range(args.num_epochs):
+    #     for i, batch in enumerate(dl):
+    #         for j, states in enumerate (batch['states']):
+    #             decoded_loss, decoded_img = test(model, states, decoder_optimizer)
+    #             running_decoded_loss += decoded_loss
+
+    #     running_decoded_loss = running_decoded_loss / (len(dl)*args.batch_size)
+    #     writer.add_scalar('Loss/decoded_test', running_decoded_loss, epoch)
+
+    #     if epoch % 5 == 0:
+    #         decoded_img = (decoded_img + 1.0) * 255.0 / 2.0 
+    #         writer.add_image('decoded_epoch{}'.format(epoch), decoded_img.to(torch.uint8))
+
 
     # visualize results: loss
     plt.figure()
