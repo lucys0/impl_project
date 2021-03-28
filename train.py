@@ -7,35 +7,37 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 import cv2
-from general_utils import make_image_seq_strip
-from sprites_datagen.rewards import *
 from model import Model, Decoder
-from sprites_datagen import moving_sprites 
-from general_utils import AttrDict
 from sprites_env.envs import sprites
 from torchvision.utils import save_image
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
 import time
+from dataset import *
 
-
-def train(model, obs, reward_targets, optimizer, decoder_optimizer):
+def train(model, batch, optimizer, decoder_optimizer):
     optimizer.zero_grad()
-    reward_predicted = model(obs)
-    loss = model.criterion(reward_predicted, reward_targets)
-    # print("reward_predicted: ", reward_predicted.mean())
-    # print("reward_targets: ", reward_targets.mean())
-    loss.backward()
-    optimizer.step()
-
     decoder_optimizer.zero_grad()
-    encoded_img = model.encoder(obs[-1][None, None, :].detach().clone())
-    decoded_img = model.decoder(encoded_img).squeeze()
-    decoded_loss = model.criterion(decoded_img, obs[-1])
-    decoded_loss.backward()
+    loss = 0.0
+    decoded_loss = 0.0
+
+    for obs, reward_targets in zip(batch['obs'], batch['rewards']):
+        reward_predicted = model(obs).squeeze()
+        loss += model.criterion(reward_predicted, reward_targets)
+        
+        encoded_img = model.encoder(obs[-1][None, None, :].detach().clone())
+        decoded_img = model.decoder(encoded_img).squeeze() 
+        decoded_loss += model.criterion(decoded_img, obs[-1])
+    
+    avg_loss = loss / len(batch) # does this work?
+    avg_decoded_loss = decoded_loss / len(batch)
+
+    avg_loss.backward()
+    optimizer.step() 
+    avg_decoded_loss.backward()
     decoder_optimizer.step()
 
-    return loss.item(), decoded_img[None, :], decoded_loss.item()
+    return avg_loss.item(), decoded_img[None, :], avg_decoded_loss.item()
 
 # def test(model, states, decoder_optimizer, obs):
 #     states = 
@@ -47,26 +49,6 @@ def train(model, obs, reward_targets, optimizer, decoder_optimizer):
 
 #     return decoded_loss, decoded_img
 
-# dataloader
-def dataloader(image_resolution, time_steps, batch_size):
-    spec = AttrDict(
-        resolution=image_resolution,
-        max_seq_len=time_steps, # such that there is a reward target for each time step
-        max_speed=0.1,      # total image range [0, 1]
-        obj_size=0.2,       # size of objects, full images is 1.0
-        shapes_per_traj=1,      # number of shapes per trajectory
-        rewards=[HorPosReward],
-    )
-    # gen = moving_sprites.DistractorTemplateMovingSpritesGenerator(spec)
-    gen = moving_sprites.TemplateMovingSpritesGenerator(spec)
-    traj = gen.gen_trajectory()
-    img = make_image_seq_strip([traj.images[None, :, None].repeat(3, axis=2).astype(np.float32)], sep_val=255.0).astype(np.uint8)  
-    cv2.imwrite("ground_truth.png", img[0].transpose(1, 2, 0))
-
-    dataset = moving_sprites.MovingSpriteDataset(spec)
-    dl = DataLoader(dataset, batch_size=batch_size, shuffle=False)
-    return dl, torch.from_numpy(traj.images.astype(np.float32) / (255./2) - 1.0), img[0]
-
 # argument parser
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -76,7 +58,7 @@ def parse_args():
     parser.add_argument('--tasks', type=int, default=1)
     parser.add_argument('--conditioning_frames', type=int, default=2)
     parser.add_argument('--num_epochs', type=int, default=30)
-    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--batch_size', type=int, default=2)
     parser.add_argument('--env', type=str, default='Sprites-v0')
     args = parser.parse_args()
     return args
@@ -106,21 +88,14 @@ def main():
     writer = SummaryWriter(log_dir=log_dir)
 
     # load data
-    dl, traj_images, ground_truth = dataloader(args.image_resolution, t, args.batch_size)
-
-    data = torch.zeros(len(dl), args.batch_size, t-f, f+1, args.image_resolution, args.image_resolution)  
-    for i, batch in enumerate(dl):
-        for j, traj in enumerate(batch['images']): # traj: (max_seq_len=t, 3, 64, 64) 
-            for k in range(t-f):
-                data[i][j][k] = traj[k:k+f+1, 0, :, :].squeeze()
+    dl, traj_images, ground_truth = dataloader(args.image_resolution, t, args.batch_size, f)
 
     # initialize the environment
     env = gym.make(args.env)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    data = data.to(device)
+    traj_images = traj_images.to(device)
 
-    # decoder = Decoder().to(device)
     model = Model(t, f+1, args.tasks, args.image_resolution, device).to(device)
     make_dir()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
@@ -131,30 +106,25 @@ def main():
     for epoch in range(args.num_epochs):
         running_loss = 0.0
         running_decoded_loss = 0.0
-        for i, batch in enumerate(dl):
-            # average_loss_traj = 0.0
-            for j, reward_targets in enumerate (batch['rewards']['horizontal_position']): # change when needed
-                # print("reward_targets:", reward_targets)
-                for k in range(t-f):
-                    obs = data[i][j][k] # (f+1, 64, 64)             
-                    loss, decoded_img, decoded_loss = train(model, obs, reward_targets, optimizer, decoder_optimizer) # here it's assumed that there's only one task - fix it?
-                    running_loss += loss
-                    running_decoded_loss += decoded_loss
-            # average_loss_traj += loss
-                   
+        for batch in dl:
+            # print(batch)
+            loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer) # here it's assumed that there's only one task - fix it?
+            running_loss += loss
+            running_decoded_loss += decoded_loss
+
         # print or store data
-        running_loss = running_loss / (len(dl)*args.batch_size*(t-f))
+        running_loss = running_loss / len(dl)
         print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_loss))
         train_loss.append(running_loss)
 
-        running_decoded_loss = running_decoded_loss / (len(dl)*args.batch_size*(t-f))
+        running_decoded_loss = running_decoded_loss / len(dl)
         train_decoded_loss.append(running_decoded_loss)
 
         writer.add_scalar('Loss/train', running_loss, epoch)
         writer.add_scalar('Loss/decoded', running_decoded_loss, epoch)
 
         if epoch % 5 == 0:
-            print("----", decoded_img.max())
+            # print("----", decoded_img.max())
             # print("obs[-1]: ", obs[-1].max(), "||", obs[-1].min())
             # print("decoded_img: ", decoded_img.max(), "||", decoded_img.min())
             
@@ -164,43 +134,30 @@ def main():
             # input = (obs[-1][None, :] + 1.0) * 255.0 / 2.0
             # writer.add_image('input_epoch{}'.format(epoch), input.to(torch.uint8))
 
-    # for epoch in range(args.num_epochs):
-    #     for i, batch in enumerate(dl):
-    #         for j, states in enumerate (batch['states']):
-    #             decoded_loss, decoded_img = test(model, states, decoder_optimizer)
-    #             running_decoded_loss += decoded_loss
-
-    #     running_decoded_loss = running_decoded_loss / (len(dl)*args.batch_size)
-    #     writer.add_scalar('Loss/decoded_test', running_decoded_loss, epoch)
-
-    #     if epoch % 5 == 0:
-    #         decoded_img = (decoded_img + 1.0) * 255.0 / 2.0 
-    #         writer.add_image('decoded_epoch{}'.format(epoch), decoded_img.to(torch.uint8))
-
 
     # visualize results: loss
-    plt.figure()
-    plt.plot(train_loss)
-    plt.title('Train Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.savefig('train_loss.png')
+    # plt.figure()
+    # plt.plot(train_loss)
+    # plt.title('Train Loss')
+    # plt.xlabel('Epochs')
+    # plt.ylabel('Loss')
+    # plt.savefig('train_loss.png')
 
-    plt.figure()
-    plt.plot(train_decoded_loss)
-    plt.title('Decoder Loss')
-    plt.xlabel('Epochs')
-    plt.ylabel('Decoded Loss')
-    plt.savefig('decoded_loss.png')
+    # plt.figure()
+    # plt.plot(train_decoded_loss)
+    # plt.title('Decoder Loss')
+    # plt.xlabel('Epochs')
+    # plt.ylabel('Decoded Loss')
+    # plt.savefig('decoded_loss.png')
 
     # decode and generate images with respect to reward functions
     output = model.test_decode(traj_images) 
     
     output = (output + 1.0) * 255 / 2.0    
 
-    print("*****", output.max())
+    # print("*****", output.max())
     img = make_image_seq_strip([output[None, :, None].repeat(3, axis=2).astype(np.float32)], sep_val=255.0).astype(np.uint8)   
-    cv2.imwrite("decode.png", img[0].transpose(1, 2, 0))
+    # cv2.imwrite("decode.png", img[0].transpose(1, 2, 0))
     writer.add_image('ground_truth', ground_truth)
     writer.add_image('test_decoded', img[0])
     # writer.add_image('test', output[-1][None, :].astype(np.uint8))
