@@ -16,26 +16,29 @@ import time
 from dataset import *
 
 def train(model, batch, optimizer, decoder_optimizer):
-    optimizer.zero_grad()
-    decoder_optimizer.zero_grad()
-    loss = 0.0
-    decoded_loss = 0.0
+    avg_loss = 0.0
+    avg_decoded_loss = 0.0
 
     for obs, reward_targets in zip(batch['obs'], batch['rewards']):
+        optimizer.zero_grad()
         reward_predicted = model(obs).squeeze()
-        loss += model.criterion(reward_predicted, reward_targets)
+        loss = model.criterion(reward_predicted, reward_targets)
+        avg_loss += loss
+
+        loss.backward()
+        optimizer.step()
         
+        decoder_optimizer.zero_grad()
         encoded_img = model.encoder(obs[-1][None, None, :].detach().clone())
         decoded_img = model.decoder(encoded_img).squeeze() 
-        decoded_loss += model.criterion(decoded_img, obs[-1])
-    
-    avg_loss = loss / len(batch) # does this work?
-    avg_decoded_loss = decoded_loss / len(batch)
+        decoded_loss = model.criterion(decoded_img, obs[-1])
+        avg_decoded_loss += decoded_loss
+                
+        decoded_loss.backward()
+        decoder_optimizer.step()
 
-    avg_loss.backward()
-    optimizer.step() 
-    avg_decoded_loss.backward()
-    decoder_optimizer.step()
+    avg_loss = avg_loss / len(batch)
+    avg_decoded_loss = avg_decoded_loss / len(batch)
 
     return avg_loss.item(), decoded_img[None, :], avg_decoded_loss.item()
 
@@ -107,7 +110,6 @@ def main():
         running_loss = 0.0
         running_decoded_loss = 0.0
         for batch in dl:
-            # print(batch)
             loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer) # here it's assumed that there's only one task - fix it?
             running_loss += loss
             running_decoded_loss += decoded_loss
