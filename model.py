@@ -3,10 +3,10 @@ import torch.nn as nn
 import numpy as np
 
 class Encoder(nn.Module):
-    def __init__(self, in_channels=1, out_channels=4, image_resolution=64):
+    def __init__(self, image_resolution=64):
         super(Encoder, self).__init__()
 
-        # assume in_channels=1, out_channels=4, image_resolution=64
+        # assume image_resolution=64
         self.convs = nn.ModuleList(
             [nn.Conv2d(1, 4, kernel_size=3, stride=2)] # input: 64*64*1
         )
@@ -60,13 +60,14 @@ class LSTM(nn.Module):
         # self.fc = nn.Linear(hidden_dim, output_dim) # if any prob later, maybe use it
 
     def forward(self, x): # x should be (64,)
-        # modify the size of input cells, batch_dim=1
-        input = x.unsqueeze(0).repeat(self.sequence_length, 1).unsqueeze(0) # shape: (1, T, 64)
-        # initialize hidden and cell states with zeros
-        h0 = torch.zeros(self.layer_dim, input.size(0), self.hidden_dim)
+        # hidden states provide the information
+        h0 = x[None, None, :] # (1, 1, 64)
+        # input cells, batch_dim=1
+        input = torch.zeros(self.layer_dim, self.sequence_length, self.hidden_dim) # (1, T, 64) 
+        # initialize cell states with zeros
         c0 = torch.zeros(self.layer_dim, input.size(0), self.hidden_dim)
 
-        out, _ = self.lstm(input, (h0.detach(), c0.detach()))
+        out, _ = self.lstm(input, (h0, c0))
         return out.squeeze(0) # return (T, hidden)
 
 
@@ -79,7 +80,7 @@ class Model(nn.Module):
         self.T = time_steps
         self.N = frames
         self.K = tasks
-        self.reward_heads = [MLP(input_size=time_steps*image_resolution, output_size=time_steps*1).to(device)] * tasks
+        self.reward_heads = [MLP(input_size=image_resolution, output_size=1).to(device)] * tasks
         self.image_resolution = image_resolution
         self.device = device
         self.loss = nn.MSELoss()
@@ -99,17 +100,19 @@ class Model(nn.Module):
 
         z_mlp = self.mlp(z.flatten()) # (64,)
         h = self.lstm(z_mlp) # (T, 64)
-        # z_mlp_copy = z_mlp.detach().clone()
                 
         # then feed h to each reward head to predict the reward of all time steps for every task
-        reward_predicted = []
-        h = h.flatten()
+        reward_predicted_tasks = []
         for task in range(self.K):
             # reward_heads is a list of K MLP's
-            reward_head = self.reward_heads[task]        
-            r_t = reward_head(h) # (T,) 
-            reward_predicted.append(r_t)
-        reward_predicted = torch.stack(reward_predicted, dim=0) # should be (K, T)
+            reward_head = self.reward_heads[task]   
+            reward_predicted = []
+            for t in range(self.T):
+                r_t = reward_head(h[t])   
+                reward_predicted.append(r_t) 
+            reward_predicted = torch.stack(reward_predicted, dim=0).squeeze() # (T,) 
+            reward_predicted_tasks.append(reward_predicted)
+        reward_predicted_tasks = torch.stack(reward_predicted_tasks, dim=0) # should be (K, T)
         return reward_predicted
                        
     def criterion(self, reward_predicted, reward_targets):
@@ -152,3 +155,26 @@ class Decoder(nn.Module):
 
         # output: (1, 1, 64, 64)
         return x
+
+class Test(nn.Module):
+    def __init__(self, frames):
+        super(Test, self).__init__()
+        # self.encoder = Encoder()
+        self.loss = nn.MSELoss()
+        self.decoder = Decoder()
+        self.N = frames
+
+    def forward(self, states):
+        decoded = []
+        for frame in range(self.N):
+            # the input to encoder should be in (1, 1, 64, 64)
+            # encoded = self.encoder(obs[frame][None, None, :]) #tensor(64,)
+            d = self.decoder(states[frame]).squeeze()
+            decoded.append(d)
+        decoded = torch.stack(decoded, dim=0)
+        return decoded
+
+    def criterion(self, reward_predicted, reward_targets):
+        reward_predicted = reward_predicted.squeeze()
+        assert reward_predicted.shape == reward_targets.shape
+        return self.loss(reward_predicted, reward_targets)

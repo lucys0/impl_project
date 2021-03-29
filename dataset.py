@@ -19,6 +19,7 @@ class TrainingDataset(Dataset):
                 data.rewards = traj['rewards']['horizontal_position'] # change when needed
                 data.obs = traj['images'][t-frames:t+1, 0, :, :].squeeze()
                 assert len(data.obs) == frames+1
+                data.states = traj['states'][t-frames:t+1, :].squeeze()
                 preprocessed_dataset.append(data)
         self.preprocessed_dataset = preprocessed_dataset    
 

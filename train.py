@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 import cv2
-from model import Model, Decoder
+from model import Model, Test
 from sprites_env.envs import sprites
 from torchvision.utils import save_image
 import torchvision
@@ -37,20 +37,28 @@ def train(model, batch, optimizer, decoder_optimizer):
         decoded_loss.backward()
         decoder_optimizer.step()
 
-    avg_loss = avg_loss / len(batch)
-    avg_decoded_loss = avg_decoded_loss / len(batch)
+    l = len(batch['obs'])
+    avg_loss = avg_loss / l
+    avg_decoded_loss = avg_decoded_loss / l
 
     return avg_loss.item(), decoded_img[None, :], avg_decoded_loss.item()
 
-# def test(model, states, decoder_optimizer, obs):
-#     states = 
-#     decoded_img = model.decoder(states)
-#     decoder_optimizer.zero_grad()
-#     decoded_loss = model.criterion(decoded_img, obs[-1])
-#     decoded_loss.backward()
-#     decoder_optimizer.step()
+def test(model, decoder_optimizer, batch):
+    avg_decoded_loss = 0.0
 
-#     return decoded_loss, decoded_img
+    for obs, states in zip(batch['obs'], batch['states']):
+        decoder_optimizer.zero_grad()
+        decoded = model(states.repeat(1, 32))
+        decoded_loss = model.criterion(decoded, obs)
+        avg_decoded_loss += decoded_loss
+                
+        decoded_loss.backward()
+        decoder_optimizer.step()
+
+    l = len(batch['obs'])
+    avg_decoded_loss = avg_decoded_loss / l
+
+    return decoded_loss, decoded[-1][None, :]
 
 # argument parser
 def parse_args():
@@ -61,7 +69,7 @@ def parse_args():
     parser.add_argument('--tasks', type=int, default=1)
     parser.add_argument('--conditioning_frames', type=int, default=2)
     parser.add_argument('--num_epochs', type=int, default=30)
-    parser.add_argument('--batch_size', type=int, default=2)
+    parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--env', type=str, default='Sprites-v0')
     args = parser.parse_args()
     return args
@@ -100,26 +108,31 @@ def main():
     traj_images = traj_images.to(device)
 
     model = Model(t, f+1, args.tasks, args.image_resolution, device).to(device)
-    make_dir()
+    # make_dir()
     optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     decoder_optimizer = torch.optim.Adam(model.decoder.parameters(), lr=args.learning_rate)
     train_loss = []
     train_decoded_loss = []
+    # t_model = Test(f+1)
 
     for epoch in range(args.num_epochs):
         running_loss = 0.0
         running_decoded_loss = 0.0
+        num_batch = 0
         for batch in dl:
             loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer) # here it's assumed that there's only one task - fix it?
             running_loss += loss
+            # decoded_loss, decoded_img = test(t_model, decoder_optimizer, batch)
             running_decoded_loss += decoded_loss
+            num_batch += 1
 
         # print or store data
-        running_loss = running_loss / len(dl)
+        running_loss = running_loss / num_batch
         print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_loss))
         train_loss.append(running_loss)
 
-        running_decoded_loss = running_decoded_loss / len(dl)
+        running_decoded_loss = running_decoded_loss / num_batch
+        # print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_decoded_loss)) # added
         train_decoded_loss.append(running_decoded_loss)
 
         writer.add_scalar('Loss/train', running_loss, epoch)
@@ -153,17 +166,12 @@ def main():
     # plt.savefig('decoded_loss.png')
 
     # decode and generate images with respect to reward functions
-    output = model.test_decode(traj_images) 
-    
+    output = model.test_decode(traj_images)    
     output = (output + 1.0) * 255 / 2.0    
 
-    # print("*****", output.max())
     img = make_image_seq_strip([output[None, :, None].repeat(3, axis=2).astype(np.float32)], sep_val=255.0).astype(np.uint8)   
-    # cv2.imwrite("decode.png", img[0].transpose(1, 2, 0))
     writer.add_image('ground_truth', ground_truth)
     writer.add_image('test_decoded', img[0])
-    # writer.add_image('test', output[-1][None, :].astype(np.uint8))
-    # print("&&&&", model.criterion(torch.from_numpy(img[0]), torch.from_numpy(temp)).item())
     writer.flush()
 
 if __name__ == '__main__':
