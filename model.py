@@ -8,14 +8,14 @@ class Encoder(nn.Module):
 
         # assume image_resolution=64
         self.convs = nn.ModuleList(
-            [nn.Conv2d(1, 4, kernel_size=3, stride=2)] # input: 64*64*1
+            [nn.Conv2d(1, 4, kernel_size=3, stride=2, padding=1)] # input: 64*64*1
         )
 
-        self.convs.append(nn.Conv2d(4, 8, kernel_size=3, stride=2))  # 32*32*4
-        self.convs.append(nn.Conv2d(8, 16, kernel_size=3, stride=2))  # 16*16*8
-        self.convs.append(nn.Conv2d(16, 32, kernel_size=3, stride=2)) # 8*8*16
-        self.convs.append(nn.Conv2d(32, 64, kernel_size=3, stride=2)) # 4*4*32
-        self.convs.append(nn.Conv2d(64, 128, kernel_size=1, stride=2)) # 2*2*64
+        self.convs.append(nn.Conv2d(4, 8, kernel_size=3, stride=2, padding=1))  # 32*32*4
+        self.convs.append(nn.Conv2d(8, 16, kernel_size=3, stride=2, padding=1))  # 16*16*8
+        self.convs.append(nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1)) # 8*8*16
+        self.convs.append(nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1)) # 4*4*32
+        self.convs.append(nn.Conv2d(64, 128, kernel_size=2, stride=2)) # 2*2*64
 
         # the final 1x1 feature vector gets mapped to a 64-dimensional observation space
         self.fc = nn.Linear(in_features=128, out_features=64)  # input: 1*1*128 output: 64
@@ -39,11 +39,12 @@ class MLP(nn.Module):
         self.fc1 = nn.Linear(input_size, hidden_units)
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(hidden_units, output_size)
+        self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
     
     def forward(self, x):
         hidden_layer = self.relu(self.fc1(x))
-        output_layer = self.tanh(self.fc2(hidden_layer))
+        output_layer = self.sigmoid(self.fc2(hidden_layer))
         return output_layer
 
 
@@ -57,7 +58,7 @@ class LSTM(nn.Module):
 
         # batch_first=True => input/output tensors of shape (batch_dim, seq_dim, feature_dim)
         self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
-        # self.fc = nn.Linear(hidden_dim, output_dim) # if any prob later, maybe use it
+        self.fc = nn.Linear(hidden_dim, output_dim)
 
     def forward(self, x): # x should be (64,)
         # hidden states provide the information
@@ -68,7 +69,8 @@ class LSTM(nn.Module):
         c0 = torch.zeros(self.layer_dim, input.size(0), self.hidden_dim)
 
         out, _ = self.lstm(input, (h0, c0))
-        return out.squeeze(0) # return (T, hidden)
+        # return out.squeeze(0) # return (T, hidden)
+        return self.fc(out.squeeze(0))
 
 
 class Model(nn.Module):
@@ -177,7 +179,6 @@ class Test(nn.Module):
     def forward(self, states):
         decoded = []
         for frame in range(self.N):
-            # the input to encoder should be in (1, 1, 64, 64)
             # encoded = self.encoder(obs[frame][None, None, :]) #tensor(64,)
             d = self.decoder(states[frame]).squeeze()
             decoded.append(d)

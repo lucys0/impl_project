@@ -25,17 +25,24 @@ def train(model, batch, optimizer, decoder_optimizer):
         loss = model.criterion(reward_predicted, reward_targets)
         avg_loss += loss
 
-        loss.backward()
-        optimizer.step()
-        
+        # loss.backward()
+        # optimizer.step()
+    
+    avg_loss.backward()
+    optimizer.step()
+
+    for obs in batch['obs']:
         decoder_optimizer.zero_grad()
         encoded_img = model.encoder(obs[-1][None, None, :].detach().clone())
         decoded_img = model.decoder(encoded_img).squeeze() 
         decoded_loss = model.criterion(decoded_img, obs[-1])
         avg_decoded_loss += decoded_loss
                 
-        decoded_loss.backward()
-        decoder_optimizer.step()
+        # decoded_loss.backward()
+        # decoder_optimizer.step()
+
+    avg_decoded_loss.backward()
+    decoder_optimizer.step()
 
     l = len(batch['obs'])
     avg_loss = avg_loss / l
@@ -52,8 +59,8 @@ def test(model, decoder_optimizer, batch):
         decoded_loss = model.criterion(decoded, obs)
         avg_decoded_loss += decoded_loss
                 
-        decoded_loss.backward()
-        decoder_optimizer.step()
+    avg_decoded_loss.backward()
+    decoder_optimizer.step()
 
     l = len(batch['obs'])
     avg_decoded_loss = avg_decoded_loss / l
@@ -68,7 +75,7 @@ def parse_args():
     parser.add_argument('--time_steps', type=int, default=5)
     parser.add_argument('--tasks', type=int, default=1)
     parser.add_argument('--conditioning_frames', type=int, default=2)
-    parser.add_argument('--num_epochs', type=int, default=30)
+    parser.add_argument('--num_epochs', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--env', type=str, default='Sprites-v0')
     parser.add_argument('--reward', type=str, default='horizontal_position')
@@ -116,41 +123,36 @@ def main():
     decoder_optimizer = torch.optim.Adam(model.decoder.parameters(), lr=args.learning_rate)
     train_loss = []
     train_decoded_loss = []
-    # t_model = Test(f+1)
+    t_model = Test(f+1)
 
     for epoch in range(args.num_epochs):
         running_loss = 0.0
         running_decoded_loss = 0.0
         num_batch = 0
         for batch in dl:
-            loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer) # here it's assumed that there's only one task - fix it?
-            running_loss += loss
-            # decoded_loss, decoded_img = test(t_model, decoder_optimizer, batch)
+            # loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer) # here it's assumed that there's only one task - fix it?
+            # running_loss += loss
+            decoded_loss, decoded_img = test(t_model, decoder_optimizer, batch)
             running_decoded_loss += decoded_loss
             num_batch += 1
 
         # print or store data
-        running_loss = running_loss / num_batch
-        print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_loss))
-        train_loss.append(running_loss)
+        # running_loss = running_loss / num_batch
+        # print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_loss))
+        # train_loss.append(running_loss)
 
         running_decoded_loss = running_decoded_loss / num_batch
-        # print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_decoded_loss)) # added
+        print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_decoded_loss)) # added
         train_decoded_loss.append(running_decoded_loss)
 
         writer.add_scalar('Loss/train', running_loss, epoch)
         writer.add_scalar('Loss/decoded', running_decoded_loss, epoch)
 
-        if epoch % 5 == 0:
-            # print("----", decoded_img.max())
-            # print("obs[-1]: ", obs[-1].max(), "||", obs[-1].min())
-            # print("decoded_img: ", decoded_img.max(), "||", decoded_img.min())
-            
+        if epoch % 5 == 0:           
             decoded_img = (decoded_img + 1.0) * 255.0 / 2.0 
-            # save_decod_img(decoded_img.unsqueeze(0).cpu().data, epoch)
             writer.add_image('decoded_epoch{}'.format(epoch), decoded_img.to(torch.uint8))
-            # input = (obs[-1][None, :] + 1.0) * 255.0 / 2.0
-            # writer.add_image('input_epoch{}'.format(epoch), input.to(torch.uint8))
+           
+            # save_decod_img(decoded_img.unsqueeze(0).cpu().data, epoch)           
 
 
     # visualize results: loss
