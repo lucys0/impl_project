@@ -148,6 +148,16 @@ class Decoder(nn.Module):
         self.tconvs.append(nn.ConvTranspose2d(8, 4, kernel_size=3, stride=2, padding=1, output_padding=1))
         self.tconvs.append(nn.ConvTranspose2d(4, 1, kernel_size=3, stride=2, padding=1, output_padding=1))
 
+        # self.tconvs = nn.ModuleList(
+        #     [nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)] 
+        # )
+
+        # self.tconvs.append(nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2))
+        # self.tconvs.append(nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2))
+        # self.tconvs.append(nn.ConvTranspose2d(16, 8, kernel_size=2, stride=2))
+        # self.tconvs.append(nn.ConvTranspose2d(8, 4, kernel_size=2, stride=2))
+        # self.tconvs.append(nn.ConvTranspose2d(4, 1, kernel_size=2, stride=2))
+
     def forward(self, x):
         x = self.tfc(x).view(1, 128, 1, 1)
         for i in range(6):

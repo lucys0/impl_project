@@ -71,6 +71,8 @@ def parse_args():
     parser.add_argument('--num_epochs', type=int, default=30)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--env', type=str, default='Sprites-v0')
+    parser.add_argument('--reward', type=str, default='horizontal_position')
+    parser.add_argument('--dataset_length', type=int, default=200)
     args = parser.parse_args()
     return args
 
@@ -85,6 +87,7 @@ def save_decod_img(img, epoch):
     img = img.view(-1, 64, 64)
     save_image(img, './Decoded_images/epoch{}.png'.format(epoch))
 
+
 def main():
     # parse arguments
     args = parse_args()
@@ -93,13 +96,13 @@ def main():
     t = args.time_steps
     assert t > f
 
-    log_dir = 'runs/num_epochs=' + str(args.num_epochs) + '_time_steps=' + str(t) + '_frames=' + str(f) + '_lr=' + str(args.learning_rate) + '_batch_size=' + str(args.batch_size) + '||' + time.strftime("%d-%m-%Y_%H-%M-%S")
+    log_dir = 'runs/num_epochs=' + str(args.num_epochs) + '_time_steps=' + str(t) + '_frames=' + str(f) + '_lr=' + str(args.learning_rate) + '_batch_size=' + str(args.batch_size) + '_reward=' + args.reward + ' ||' + time.strftime("%d-%m-%Y_%H-%M-%S")
     if not(os.path.exists(log_dir)):
         os.makedirs(log_dir)
     writer = SummaryWriter(log_dir=log_dir)
 
     # load data
-    dl, traj_images, ground_truth = dataloader(args.image_resolution, t, args.batch_size, f)
+    dl, traj_images, ground_truth = dataloader(args.image_resolution, t, args.batch_size, f, args.reward, args.dataset_length)
 
     # initialize the environment
     env = gym.make(args.env)
