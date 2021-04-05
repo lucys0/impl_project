@@ -9,9 +9,9 @@ from torch.optim import Adam
 from torch.distributions import MultivariateNormal
 
 """
-This PPO implementation follows the pseudocode provided in OpenAI's Spinning Up for PPO: 
-https://spinningup.openai.com/en/latest/algorithms/ppo.html. 
-Pseudocode line numbers are specified as "ALG STEP #" in ppo.py.
+    This PPO implementation follows the pseudocode provided in OpenAI's Spinning Up for PPO: 
+    https://spinningup.openai.com/en/latest/algorithms/ppo.html. 
+    Pseudocode line numbers are specified as "ALG STEP #" in ppo.py.
 """
 
 class PPO:
@@ -71,7 +71,6 @@ class PPO:
 		i_so_far = 0  # Iterations ran so far
 		# ALG STEP 2
 		while t_so_far < total_timesteps:
-			# Autobots, roll out (just kidding, we're collecting our batch simulations here)
 			batch_obs, batch_acts, batch_log_probs, batch_rtgs, batch_lens = self.rollout(
 			)                     # ALG STEP 3
 
@@ -132,7 +131,7 @@ class PPO:
 			# Print a summary of our training so far
 			self._log_summary()
 
-			# Save our model if it's time
+			# Save our model if it's time | needed?
 			if i_so_far % self.save_freq == 0:
 				torch.save(self.actor.state_dict(), './ppo_actor.pth')
 				torch.save(self.critic.state_dict(), './ppo_critic.pth')
@@ -168,7 +167,7 @@ class PPO:
 		while t < self.timesteps_per_batch:
 			ep_rews = []  # rewards collected per episode
 
-			# Reset the environment. sNote that obs is short for observation.
+			# Reset the environment.
 			obs = self.env.reset()
 			done = False
 
