@@ -43,6 +43,8 @@ class MLP(nn.Module):
         self.tanh = nn.Tanh()
     
     def forward(self, x):
+        if isinstance(x, np.ndarray):
+            x = torch.tensor(x, dtype=torch.float)
         hidden_layer = self.relu(self.fc1(x))
         output_layer = self.sigmoid(self.fc2(hidden_layer))
         return output_layer
@@ -140,25 +142,25 @@ class Decoder(nn.Module):
         super(Decoder, self).__init__()
         
         self.tfc = nn.Linear(64, 128)
-        self.tconvs = nn.ModuleList(
-            [nn.ConvTranspose2d(128, 64, kernel_size=1, stride=2, output_padding=1)]
-        )
-
-        self.tconvs.append(nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1))
-        self.tconvs.append(nn.ConvTranspose2d(32, 16, kernel_size=3, stride=2, padding=1, output_padding=1))
-        self.tconvs.append(nn.ConvTranspose2d(16, 8, kernel_size=3, stride=2, padding=1, output_padding=1))
-        self.tconvs.append(nn.ConvTranspose2d(8, 4, kernel_size=3, stride=2, padding=1, output_padding=1))
-        self.tconvs.append(nn.ConvTranspose2d(4, 1, kernel_size=3, stride=2, padding=1, output_padding=1))
-
         # self.tconvs = nn.ModuleList(
-        #     [nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)] 
+        #     [nn.ConvTranspose2d(128, 64, kernel_size=1, stride=2, output_padding=1)]
         # )
 
-        # self.tconvs.append(nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2))
-        # self.tconvs.append(nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2))
-        # self.tconvs.append(nn.ConvTranspose2d(16, 8, kernel_size=2, stride=2))
-        # self.tconvs.append(nn.ConvTranspose2d(8, 4, kernel_size=2, stride=2))
-        # self.tconvs.append(nn.ConvTranspose2d(4, 1, kernel_size=2, stride=2))
+        # self.tconvs.append(nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1, output_padding=1))
+        # self.tconvs.append(nn.ConvTranspose2d(32, 16, kernel_size=3, stride=2, padding=1, output_padding=1))
+        # self.tconvs.append(nn.ConvTranspose2d(16, 8, kernel_size=3, stride=2, padding=1, output_padding=1))
+        # self.tconvs.append(nn.ConvTranspose2d(8, 4, kernel_size=3, stride=2, padding=1, output_padding=1))
+        # self.tconvs.append(nn.ConvTranspose2d(4, 1, kernel_size=3, stride=2, padding=1, output_padding=1))
+
+        self.tconvs = nn.ModuleList(
+            [nn.ConvTranspose2d(128, 64, kernel_size=2, stride=2)] 
+        )
+
+        self.tconvs.append(nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2))
+        self.tconvs.append(nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2))
+        self.tconvs.append(nn.ConvTranspose2d(16, 8, kernel_size=2, stride=2))
+        self.tconvs.append(nn.ConvTranspose2d(8, 4, kernel_size=2, stride=2))
+        self.tconvs.append(nn.ConvTranspose2d(4, 1, kernel_size=2, stride=2))
 
     def forward(self, x):
         x = self.tfc(x).view(1, 128, 1, 1)

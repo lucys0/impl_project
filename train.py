@@ -50,13 +50,13 @@ def train(model, batch, optimizer, decoder_optimizer):
 
     return avg_loss.item(), decoded_img[None, :], avg_decoded_loss.item()
 
-def test(model, decoder_optimizer, batch):
+def test(t_model, decoder_optimizer, batch):
     avg_decoded_loss = 0.0
 
     for obs, states in zip(batch['obs'], batch['states']):
         decoder_optimizer.zero_grad()
-        decoded = model(states.repeat(1, 32))
-        decoded_loss = model.criterion(decoded, obs)
+        decoded = t_model(states.repeat(1, 32))  # (N, 64) -> (N, 64, 64)
+        decoded_loss = t_model.criterion(decoded, obs)
         avg_decoded_loss += decoded_loss
                 
     avg_decoded_loss.backward()
@@ -123,26 +123,27 @@ def main():
     decoder_optimizer = torch.optim.Adam(model.decoder.parameters(), lr=args.learning_rate)
     train_loss = []
     train_decoded_loss = []
-    t_model = Test(f+1)
+    # t_model = Test(f+1)
+    # decoder_optimizer = torch.optim.Adam(t_model.parameters(), lr=args.learning_rate)
 
     for epoch in range(args.num_epochs):
         running_loss = 0.0
         running_decoded_loss = 0.0
         num_batch = 0
         for batch in dl:
-            # loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer) # here it's assumed that there's only one task - fix it?
-            # running_loss += loss
-            decoded_loss, decoded_img = test(t_model, decoder_optimizer, batch)
+            loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer) # here it's assumed that there's only one task - fix it?
+            running_loss += loss
+            # decoded_loss, decoded_img = test(t_model, decoder_optimizer, batch)
             running_decoded_loss += decoded_loss
             num_batch += 1
 
         # print or store data
-        # running_loss = running_loss / num_batch
-        # print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_loss))
-        # train_loss.append(running_loss)
+        running_loss = running_loss / num_batch
+        print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_loss))
+        train_loss.append(running_loss)
 
         running_decoded_loss = running_decoded_loss / num_batch
-        print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_decoded_loss)) # added
+        # print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_decoded_loss)) # added
         train_decoded_loss.append(running_decoded_loss)
 
         writer.add_scalar('Loss/train', running_loss, epoch)
@@ -171,7 +172,7 @@ def main():
     # plt.savefig('decoded_loss.png')
 
     # decode and generate images with respect to reward functions
-    output = model.test_decode(traj_images)    
+    output = model.test_decode(traj_images)
     output = (output + 1.0) * 255 / 2.0    
 
     img = make_image_seq_strip([output[None, :, None].repeat(3, axis=2).astype(np.float32)], sep_val=255.0).astype(np.uint8)   
