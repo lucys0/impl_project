@@ -11,8 +11,8 @@ class MovingSpriteDataset(Dataset):
     """Dataset of multiple sprites bouncing in frame, contains different reward annotations."""
     def __init__(self, spec):
         self._spec = spec
-        # self._generator = DistractorTemplateMovingSpritesGenerator(self._spec)
-        self._generator = TemplateMovingSpritesGenerator(self._spec)
+        self._generator = DistractorTemplateMovingSpritesGenerator(self._spec)
+        # self._generator = TemplateMovingSpritesGenerator(self._spec)
 
     def __getitem__(self, item):
         traj = self._generator.gen_trajectory()

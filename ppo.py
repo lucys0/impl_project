@@ -17,7 +17,7 @@ from torch.utils.tensorboard import SummaryWriter
 """
 
 class PPO:
-	def __init__(self, policy_class, env, **hyperparameters):
+	def __init__(self, policy_class, env, encoder=None, **hyperparameters):
 		"""
 			Initializes the PPO model, including hyperparameters.
 			Parameters:
@@ -32,10 +32,14 @@ class PPO:
 
 		# Extract environment information
 		self.env = env
-		self.obs_dim = (
-			env.observation_space.shape[0]) * (env.observation_space.shape[1])
+        # self.obs_dim = (
+		# 	env.observation_space.shape[0]) * (env.observation_space.shape[1])
+		self.obs_dim = env.observation_space.shape[0]
 		self.act_dim = env.action_space.shape[0]
 
+		# Set the encoder
+		self.encoder = encoder
+		
 	 # Initialize actor and critic networks
 		# ALG STEP 1
 		self.actor = policy_class(self.obs_dim, self.act_dim)
@@ -183,6 +187,8 @@ class PPO:
 				t += 1  # Increment timesteps ran this batch so far
 
 				# Track observations in this batch
+				if self.encoder:
+					obs = self.encoder(obs[None, None, :]).detach().numpy() # will detach it from the graph?
 				batch_obs.append(obs.flatten())
 
 				# Calculate action and make a step in the env.

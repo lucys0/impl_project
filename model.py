@@ -22,8 +22,10 @@ class Encoder(nn.Module):
 
     # x is the observation at one time step
     def forward(self, x, detach=False):
+        if isinstance(x, np.ndarray):
+            x = torch.tensor(x, dtype=torch.float)
         for i in range(6):
-            x = torch.tanh(self.convs[i](x))
+            x = torch.relu(self.convs[i](x))
         x = self.fc(x.squeeze())
 
         # freeze the encoder
@@ -46,7 +48,8 @@ class MLP(nn.Module):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float)
         hidden_layer = self.relu(self.fc1(x))
-        output_layer = self.sigmoid(self.fc2(hidden_layer))
+        # output_layer = self.sigmoid(self.fc2(hidden_layer))
+        output_layer = self.fc2(hidden_layer)
         return output_layer
 
 
@@ -117,7 +120,7 @@ class Model(nn.Module):
             reward_predicted = torch.stack(reward_predicted, dim=0).squeeze() # (T,) 
             reward_predicted_tasks.append(reward_predicted)
         reward_predicted_tasks = torch.stack(reward_predicted_tasks, dim=0) # should be (K, T)
-        return reward_predicted
+        return reward_predicted_tasks
                        
     def criterion(self, reward_predicted, reward_targets):
         reward_predicted = reward_predicted.squeeze()

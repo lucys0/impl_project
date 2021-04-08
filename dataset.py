@@ -21,6 +21,8 @@ def reward_class(reward):
         return TargetXReward
     if reward == 'target_y':
         return TargetYReward
+    if reward == 'follow':
+        return FollowReward
     else:
         return None
 
@@ -54,14 +56,14 @@ def dataloader(image_resolution, time_steps, batch_size, frames, reward, dataset
     spec = AttrDict(
         resolution=image_resolution,
         max_seq_len=time_steps, # such that there is a reward target for each time step
-        max_speed=0.1,      # total image range [0, 1]
+        max_speed=0.05,      # total image range [0, 1]
         obj_size=0.2,       # size of objects, full images is 1.0
-        shapes_per_traj=1,      # number of shapes per trajectory
+        shapes_per_traj=2,      # number of shapes per trajectory
         rewards=[reward_class(reward)],
         # length = dataset_length,
     )
-    # gen = moving_sprites.DistractorTemplateMovingSpritesGenerator(spec)
-    gen = moving_sprites.TemplateMovingSpritesGenerator(spec)
+    gen = moving_sprites.DistractorTemplateMovingSpritesGenerator(spec)
+    # gen = moving_sprites.TemplateMovingSpritesGenerator(spec)
     traj = gen.gen_trajectory()
     img = make_image_seq_strip([traj.images[None, :, None].repeat(3, axis=2).astype(np.float32)], sep_val=255.0).astype(np.uint8)  
     # cv2.imwrite("ground_truth.png", img[0].transpose(1, 2, 0))

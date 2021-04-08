@@ -64,5 +64,18 @@ class TargetYReward(Reward):
     NAME = 'target_y'
 
     def __call__(self, trajectories, shapes):
+        print("---", trajectories[:, 1, 0])
         return trajectories[:, 1, 0]
 
+
+class FollowReward(Reward):
+    """Returns reward proportional to the distance between the agent and the target."""
+    NAME = 'follow'
+
+    def __call__(self, trajectories, shapes):
+        agent_pos = trajectories[:, 0, :2]
+        target_pos = trajectories[:, 1, :2]
+
+        reward = [1. - np.sqrt(((target_pos[i] - agent_pos[i]) ** 2).sum()) /
+                  np.sqrt(2) for i in range(trajectories.shape[0])]
+        return np.asarray(reward, dtype=np.float32)
