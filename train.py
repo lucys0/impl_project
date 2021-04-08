@@ -71,7 +71,7 @@ def test(t_model, decoder_optimizer, batch):
 # argument parser
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--learning_rate', type=float, default=3e-4)
+    parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--image_resolution', type=int, default=64)
     parser.add_argument('--time_steps', type=int, default=5)
     parser.add_argument('--tasks', type=int, default=1)
@@ -157,7 +157,6 @@ def main():
     img = make_image_seq_strip([output[None, :, None].repeat(3, axis=2).astype(np.float32)], sep_val=255.0).astype(np.uint8)   
     writer.add_image('ground_truth', ground_truth)
     writer.add_image('test_decoded', img[0])
-    writer.flush()
 
     # set hyperparameters for PPO
     hyperparameters = {
@@ -175,8 +174,10 @@ def main():
     ppo = PPO(policy_class=MLP, env=env, **hyperparameters)
 
     # Train the PPO model with a specified total timesteps
-    # put a big number, can be changed later
-    ppo.learn(total_timesteps=200_000_000)
+    # The project description uses 5_000_000
+    ppo.learn(writer, total_timesteps=1_000_000)
+    writer.flush()
+
 
 # create a directory to save the results
 def make_dir():

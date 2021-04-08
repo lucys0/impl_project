@@ -7,6 +7,8 @@ import torch
 import torch.nn as nn
 from torch.optim import Adam
 from torch.distributions import MultivariateNormal
+import torchvision
+from torch.utils.tensorboard import SummaryWriter
 
 """
     This PPO implementation follows the pseudocode provided in OpenAI's Spinning Up for PPO: 
@@ -30,7 +32,8 @@ class PPO:
 
 		# Extract environment information
 		self.env = env
-		self.obs_dim = env.observation_space.shape[0]
+		self.obs_dim = (
+			env.observation_space.shape[0]) * (env.observation_space.shape[1])
 		self.act_dim = env.action_space.shape[0]
 
 	 # Initialize actor and critic networks
@@ -54,9 +57,10 @@ class PPO:
 			'batch_lens': [],       # episodic lengths in batch
 			'batch_rews': [],       # episodic returns in batch
 			'actor_losses': [],     # losses of actor network in current iteration
+			'critic_losses': [],
 		}
 
-	def learn(self, total_timesteps):
+	def learn(self, writer, total_timesteps):
 		"""
 			Train the actor and critic networks. Here is where the main PPO algorithm resides.
 			Parameters:
@@ -89,13 +93,11 @@ class PPO:
 			# ALG STEP 5
 			A_k = batch_rtgs - V.detach()
 
-			# One of the only tricks I use that isn't in the pseudocode. Normalizing advantages
-			# isn't theoretically necessary, but in practice it decreases the variance of
-			# our advantages and makes convergence much more stable and faster. I added this because
-			# solving some environments was too unstable without it.
+			# Normalizing advantages to decrease the variance and makes
+            # convergence much more stable and faster.
 			A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
 
-			# This is the loop where we update our network for some n epochs
+		    # Update the network for some n epochs
 			# ALG STEP 6 & 7
 			for _ in range(self.n_updates_per_iteration):
 				# Calculate V_phi and pi_theta(a_t | s_t)
@@ -125,16 +127,17 @@ class PPO:
 				critic_loss.backward()
 				self.critic_optim.step()
 
-				# Log actor loss
+				# Log actor and critic loss
 				self.logger['actor_losses'].append(actor_loss.detach())
+				self.logger['critic_losses'].append(critic_loss.detach())
 
 			# Print a summary of our training so far
-			self._log_summary()
+			self._log_summary(writer)
 
-			# Save our model if it's time | needed?
-			if i_so_far % self.save_freq == 0:
-				torch.save(self.actor.state_dict(), './ppo_actor.pth')
-				torch.save(self.critic.state_dict(), './ppo_critic.pth')
+			# # Save our model if it's time | needed?
+			# if i_so_far % self.save_freq == 0:
+			# 	torch.save(self.actor.state_dict(), './ppo_actor.pth')
+			# 	torch.save(self.critic.state_dict(), './ppo_critic.pth')
 
 	def rollout(self):
 		"""
@@ -180,11 +183,10 @@ class PPO:
 				t += 1  # Increment timesteps ran this batch so far
 
 				# Track observations in this batch
-				batch_obs.append(obs)
+				batch_obs.append(obs.flatten())
 
 				# Calculate action and make a step in the env.
-				# Note that rew is short for reward.
-				action, log_prob = self.get_action(obs)
+				action, log_prob = self.get_action(obs.flatten())
 				obs, rew, done, _ = self.env.step(action)
 
 				# Track recent reward, action, and action log probability
@@ -335,7 +337,7 @@ class PPO:
 			torch.manual_seed(self.seed)
 			print(f"Successfully set seed to {self.seed}")
 
-	def _log_summary(self):
+	def _log_summary(self, writer):
 		"""
 			Print to stdout what we've logged so far in the most recent batch.
 			Parameters:
@@ -343,9 +345,7 @@ class PPO:
 			Return:
 				None
 		"""
-		# Calculate logging values. I use a few python shortcuts to calculate each value
-		# without explaining since it's not too important to PPO; feel free to look it over,
-		# and if you have any questions you can email me (look at bottom of README)
+		# Calculate logging values.
 		delta_t = self.logger['delta_t']
 		self.logger['delta_t'] = time.time_ns()
 		delta_t = (self.logger['delta_t'] - delta_t) / 1e9
@@ -358,6 +358,13 @@ class PPO:
 		                      for ep_rews in self.logger['batch_rews']])
 		avg_actor_loss = np.mean([losses.float().mean()
 		                         for losses in self.logger['actor_losses']])
+		avg_critic_loss = np.mean([losses.float().mean()
+                                  for losses in self.logger['critic_losses']])
+        
+		writer.add_scalar('Average Episodic Length', avg_ep_lens, i_so_far)
+		writer.add_scalar('Average Episodic Return', avg_ep_rews, i_so_far)
+		writer.add_scalar('Average Actor Loss', avg_actor_loss, i_so_far)
+		writer.add_scalar('Average Critic Loss', avg_critic_loss, i_so_far)
 
 		# Round decimal places for more aesthetic logging messages
 		avg_ep_lens = str(round(avg_ep_lens, 2))
