@@ -78,14 +78,10 @@ def parse_args():
     parser.add_argument('--conditioning_frames', type=int, default=2)
     parser.add_argument('--num_epochs', type=int, default=1)
     parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--env', type=str, default='SpritesState-v0')
+    parser.add_argument('--env', type=str, default='Sprites-v0')
     parser.add_argument('--reward', type=str, default='follow')
-    parser.add_argument('--dataset_length', type=int, default=200)
-    # parser.add_argument('--timesteps_per_batch', type=int, default=2048)
-    # parser.add_argument('--max_timesteps_per_episode', type=int, default=200)
-    # parser.add_argument('--gamma', type=float, default=0.99)
-    # parser.add_argument('--n_updates_per_iteration', type=int, default=10)
-    # parser.add_argument('--clip', type=float, default=0.2)
+    parser.add_argument('--dataset_length', type=int, default=200)   
+    parser.add_argument('--total_timesteps', type=int, default=1_000_000) # The project description uses 5_000_000
     args = parser.parse_args()
     return args
 
@@ -163,20 +159,19 @@ def main():
         'timesteps_per_batch': 2048,
                     'max_timesteps_per_episode': 200,
                     'gamma': 0.99,
-                    'n_updates_per_iteration': 10,
+                    'n_updates_per_iteration': 5,
                     'lr': 1e-3,
                     'clip': 0.2,
                     'render': True,
                     'render_every_i': 10
     }
-
+   
     # Trains the RL model
     ppo = PPO(MLP, env, writer, model.encoder, **hyperparameters)
     # ppo = PPO(policy_class=MLP, env=env, **hyperparameters)
 
     # Train the PPO model with a specified total timesteps
-    # The project description uses 5_000_000
-    ppo.learn(total_timesteps=1_000_000)
+    ppo.learn(total_timesteps=args.total_timesteps)
     writer.flush()
 
 

@@ -38,18 +38,18 @@ class Encoder(nn.Module):
 class MLP(nn.Module):
     def __init__(self, input_size, output_size, hidden_units=32):
         super(MLP, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_units)
-        self.relu = nn.ReLU()
+        self.fc1 = nn.Linear(input_size, hidden_units)     
         self.fc2 = nn.Linear(hidden_units, output_size)
+        self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
-    
+
     def forward(self, x):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float)
         hidden_layer = self.relu(self.fc1(x))
         output_layer = self.relu(self.fc2(hidden_layer))
-        # output_layer = self.fc2(hidden_layer)
+        # output_layer = self.fc3(hidden_layer)
         return output_layer
 
 

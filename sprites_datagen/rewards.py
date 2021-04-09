@@ -69,7 +69,7 @@ class TargetYReward(Reward):
 
 
 class FollowReward(Reward):
-    """Returns reward proportional to the distance between the agent and the target."""
+    """Returns reward (inversely) proportional to the distance between the agent and the target."""
     NAME = 'follow'
 
     def __call__(self, trajectories, shapes):
