@@ -34,9 +34,32 @@ class Encoder(nn.Module):
         return x
 
 
+class CNN(nn.Module):
+    def __init__(self):
+        super(CNN, self).__init__()
+
+        self.convs = nn.ModuleList(
+            [nn.Conv2d(1, 4, kernel_size=3, stride=2, padding=1)]
+        )
+        self.convs.append(nn.Conv2d(4, 8, kernel_size=3, stride=2, padding=1))
+        self.convs.append(nn.Conv2d(8, 16, kernel_size=3, stride=2, padding=1))
+
+        # the final 1x1 feature vector gets mapped to a 64-dimensional observation space
+        # input: 1*1*128 output: 64
+        # self.fc = nn.Linear(in_features=128, out_features=64)
+
+    # x is the observation at one time step
+    def forward(self, x):
+        if isinstance(x, np.ndarray):
+            x = torch.tensor(x, dtype=torch.float)
+        for i in range(3):
+            x = torch.relu(self.convs[i](x))
+        # x = self.fc(x.squeeze())
+        return x
+
 # Build a 3-layer feedforward neural network
 class MLP(nn.Module):
-    def __init__(self, input_size, output_size, hidden_units=32):
+    def __init__(self, input_size, output_size, hidden_units=64):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_units)     
         self.fc2 = nn.Linear(hidden_units, output_size)
@@ -48,7 +71,7 @@ class MLP(nn.Module):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float)
         hidden_layer = self.relu(self.fc1(x))
-        output_layer = self.relu(self.fc2(hidden_layer))
+        output_layer = self.fc2(hidden_layer)
         # output_layer = self.fc3(hidden_layer)
         return output_layer
 

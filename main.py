@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 import cv2
-from model import Model, Test, MLP
+from model import Model, Test, MLP, CNN
 from sprites_env.envs import sprites
 from torchvision.utils import save_image
 import torchvision
@@ -159,16 +159,18 @@ def main():
         'timesteps_per_batch': 2048,
                     'max_timesteps_per_episode': 200,
                     'gamma': 0.99,
-                    'n_updates_per_iteration': 5,
-                    'lr': 1e-3,
+                    'n_updates_per_iteration': 10,
+                    'lr': 3e-4,
                     'clip': 0.2,
                     'render': True,
                     'render_every_i': 10
     }
    
     # Trains the RL model
-    ppo = PPO(MLP, env, writer, model.encoder, **hyperparameters)
-    # ppo = PPO(policy_class=MLP, env=env, **hyperparameters)
+    cnn = CNN().to(device)
+    # ppo = PPO(MLP, env, writer, model.encoder, **hyperparameters)
+    ppo = PPO(MLP, env, writer, cnn, **hyperparameters)
+    # ppo = PPO(MLP, env, writer, **hyperparameters)
 
     # Train the PPO model with a specified total timesteps
     ppo.learn(total_timesteps=args.total_timesteps)

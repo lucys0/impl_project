@@ -34,7 +34,8 @@ class PPO:
 		self.env = env
         # self.obs_dim = (
 		# 	env.observation_space.shape[0]) * (env.observation_space.shape[1])
-		self.obs_dim = env.observation_space.shape[0]
+		# self.obs_dim = env.observation_space.shape[0]
+		self.obs_dim = 16 * 8 * 8
 		self.act_dim = env.action_space.shape[0]
 
 		# Set the encoder and writer
@@ -132,7 +133,7 @@ class PPO:
 
 				# Calculate gradients and perform backward propagation for critic network
 				self.critic_optim.zero_grad()
-				critic_loss.backward(retain_graph=True)
+				critic_loss.backward()
 				self.critic_optim.step()
 
 				# Log actor and critic loss
