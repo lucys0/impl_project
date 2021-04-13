@@ -76,12 +76,12 @@ def parse_args():
     parser.add_argument('--time_steps', type=int, default=5)
     parser.add_argument('--tasks', type=int, default=1)
     parser.add_argument('--conditioning_frames', type=int, default=2)
-    parser.add_argument('--num_epochs', type=int, default=1)
+    parser.add_argument('--num_epochs', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--env', type=str, default='Sprites-v0')
     parser.add_argument('--reward', type=str, default='follow')
     parser.add_argument('--dataset_length', type=int, default=200)   
-    parser.add_argument('--total_timesteps', type=int, default=1_000_000) # The project description uses 5_000_000
+    parser.add_argument('--total_timesteps', type=int, default=2_000_000) # The project description uses 5_000_000
     args = parser.parse_args()
     return args
 
@@ -159,7 +159,8 @@ def main():
         'timesteps_per_batch': 2048,
                     'max_timesteps_per_episode': 200,
                     'gamma': 0.99,
-                    'n_updates_per_iteration': 10,
+                    'gae_lamda': 0.95,
+                    'n_updates_per_iteration': 5,
                     'lr': 3e-4,
                     'clip': 0.2,
                     'render': True,

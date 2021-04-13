@@ -49,12 +49,16 @@ class CNN(nn.Module):
         # self.fc = nn.Linear(in_features=128, out_features=64)
 
     # x is the observation at one time step
-    def forward(self, x):
+    def forward(self, x, detach=False):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float)
         for i in range(3):
             x = torch.relu(self.convs[i](x))
         # x = self.fc(x.squeeze())
+        
+        # freeze the encoder
+        if detach:
+            x.detach()
         return x
 
 # Build a 3-layer feedforward neural network
