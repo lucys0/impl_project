@@ -38,15 +38,19 @@ class CNN(nn.Module):
     def __init__(self):
         super(CNN, self).__init__()
 
+        # Architecture 1
+        # self.convs = nn.ModuleList(
+        #     [nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1)])
+        # self.convs.append(nn.Conv2d(16, 1, kernel_size=3, stride=2, padding=1))
+        # self.convs.append(nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1))
+
+        # Architecture 2
         self.convs = nn.ModuleList(
-            [nn.Conv2d(1, 4, kernel_size=3, stride=2, padding=1)]
-        )
+            [nn.Conv2d(1, 4, kernel_size=3, stride=2, padding=1)])
         self.convs.append(nn.Conv2d(4, 8, kernel_size=3, stride=2, padding=1))
         self.convs.append(nn.Conv2d(8, 16, kernel_size=3, stride=2, padding=1))
 
-        # the final 1x1 feature vector gets mapped to a 64-dimensional observation space
-        # input: 1*1*128 output: 64
-        # self.fc = nn.Linear(in_features=128, out_features=64)
+        # self.fc = nn.Linear(in_features=16*8*8, out_features=64)
 
     # x is the observation at one time step
     def forward(self, x, detach=False):
@@ -56,7 +60,7 @@ class CNN(nn.Module):
             x = torch.relu(self.convs[i](x))
         # x = self.fc(x.squeeze())
         
-        # freeze the encoder
+        # freeze
         if detach:
             x.detach()
         return x
