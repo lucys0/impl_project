@@ -45,12 +45,20 @@ class CNN(nn.Module):
         # self.convs.append(nn.Conv2d(1, 16, kernel_size=3, stride=2, padding=1))
 
         # Architecture 2
-        self.convs = nn.ModuleList(
-            [nn.Conv2d(1, 4, kernel_size=3, stride=2, padding=1)])
-        self.convs.append(nn.Conv2d(4, 8, kernel_size=3, stride=2, padding=1))
-        self.convs.append(nn.Conv2d(8, 16, kernel_size=3, stride=2, padding=1))
+        # self.convs = nn.ModuleList(
+        #     [nn.Conv2d(1, 4, kernel_size=3, stride=2, padding=1)]) 
+        # self.convs.append(nn.Conv2d(4, 8, kernel_size=3, stride=2, padding=1)) 
+        # self.convs.append(nn.Conv2d(8, 16, kernel_size=3, stride=2, padding=1)) 
 
         # self.fc = nn.Linear(in_features=16*8*8, out_features=64)
+
+        # Architecture 3
+        self.convs = nn.ModuleList(
+            [nn.Conv2d(1, 32, kernel_size=3, stride=2)])  # 31
+        self.convs.append(nn.Conv2d(32, 32, kernel_size=3, stride=1))  # 29
+        self.convs.append(nn.Conv2d(32, 32, kernel_size=3, stride=1))  # 27
+
+        # self.fc = nn.Linear(in_features=32*27*27, out_features=64)
 
     # x is the observation at one time step
     def forward(self, x, detach=False):
@@ -67,7 +75,7 @@ class CNN(nn.Module):
 
 # Build a 3-layer feedforward neural network
 class MLP(nn.Module):
-    def __init__(self, input_size, output_size, hidden_units=64):
+    def __init__(self, input_size, output_size, hidden_units=32):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_units)     
         self.fc2 = nn.Linear(hidden_units, output_size)
@@ -79,6 +87,36 @@ class MLP(nn.Module):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float)
         hidden_layer = self.relu(self.fc1(x))
+        output_layer = self.fc2(hidden_layer)
+        # output_layer = self.fc3(hidden_layer)
+        return output_layer
+
+
+class CNN_MLP(nn.Module):
+    def __init__(self, input_size, output_size, hidden_units=64):
+        super(MLP, self).__init__()
+        self.convs = nn.ModuleList(
+            [nn.Conv2d(1, 32, kernel_size=3, stride=2)])  # 31
+        self.convs.append(nn.Conv2d(32, 32, kernel_size=3, stride=1))  # 29
+        self.convs.append(nn.Conv2d(32, 32, kernel_size=3, stride=1))  # 27
+
+        self.fc1 = nn.Linear(input_size, hidden_units)
+        self.fc2 = nn.Linear(hidden_units, output_size)
+        self.relu = nn.ReLU()
+        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+
+    def forward(self, x):
+        if isinstance(x, np.ndarray):
+            x = torch.tensor(x, dtype=torch.float)
+        if len(x.shape) == 3:
+            x = x.unsqueeze(1)
+        if len(x.shape) == 2:
+            x = x[None, None, :]
+        for i in range(3):
+            x = torch.relu(self.convs[i](x))
+
+        hidden_layer = self.relu(self.fc1(x.view(-1, 32*27*27)))
         output_layer = self.fc2(hidden_layer)
         # output_layer = self.fc3(hidden_layer)
         return output_layer

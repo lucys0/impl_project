@@ -11,10 +11,11 @@ import torchvision
 from torch.utils.tensorboard import SummaryWriter
 
 """
-    This PPO implementation follows the pseudocode provided in OpenAI's Spinning Up for PPO: 
-    https://spinningup.openai.com/en/latest/algorithms/ppo.html. 
-    Pseudocode line numbers are specified as "ALG STEP #" in ppo.py.
+	This PPO implementation follows the pseudocode provided in OpenAI's Spinning Up for PPO: 
+	https://spinningup.openai.com/en/latest/algorithms/ppo.html. 
+	Pseudocode line numbers are specified as "ALG STEP #" in ppo.py.
 """
+
 
 class PPO:
 	def __init__(self, policy_class, env, writer, encoder=None, **hyperparameters):
@@ -32,12 +33,12 @@ class PPO:
 
 		# Extract environment information
 		self.env = env
-        # self.obs_dim = (
+		# self.obs_dim = (
 		# 	env.observation_space.shape[0]) * (env.observation_space.shape[1])
-		# self.obs_dim = env.observation_space.shape[0]
-		self.obs_dim = 16 * 8 * 8 # cnn
+		self.obs_dim = env.observation_space.shape[0]
+		# self.obs_dim = 32 * 27 * 27 # cnn
 		self.act_dim = env.action_space.shape[0]
-
+			
 		# Set the encoder and writer
 		self.encoder = encoder
 		self.writer = writer
@@ -84,7 +85,13 @@ class PPO:
 		i_so_far = 0  # Iterations ran so far
 		# ALG STEP 2
 		while t_so_far < total_timesteps:
-			batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_masks = self.rollout(
+			# decide if videos should be rendered/logged at this iteration
+			if i_so_far % 10 == 0:  # video_log_freq, a hyperparameter
+				self.log_video = True
+			else:
+				self.log_video = False
+
+			batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_masks, batch_image_obs = self.rollout(
 			)                     # ALG STEP 3
 
 			# Calculate how many timesteps we collected this batch
@@ -104,10 +111,10 @@ class PPO:
 			A_k = batch_returns - V.detach()
 
 			# Normalizing advantages to decrease the variance and makes
-            # convergence much more stable and faster.
+			# convergence much more stable and faster.
 			A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
 
-		    # Update the network for some n epochs
+			# Update the network for some n epochs
 			# ALG STEP 6 & 7
 			for _ in range(self.n_updates_per_iteration):
 				# Calculate V_phi and pi_theta(a_t | s_t)
@@ -144,10 +151,18 @@ class PPO:
 			# Print a summary of our training so far
 			self._log_summary()
 
+			# log/save
+			if self.log_video:
+				# perform logging
+				print('\nBeginning logging procedure...')
+				# Need [N, T, C, H, W] input tensor for video logging
+				video = torch.tensor(batch_image_obs).unsqueeze(0).unsqueeze(2)
+				self.writer.add_video('{}'.format('train_rollouts'), video, i_so_far-1, fps=10)
+
 	def rollout(self):
 		"""
 			Collect the batch of data from simulation. Since this is an on-policy algorithm, a fresh batch of data need to 
-            be collected each time as we iterate the actor/critic networks.
+			be collected each time as we iterate the actor/critic networks.
 			Parameters:
 				None
 			Return:
@@ -165,6 +180,7 @@ class PPO:
 		batch_rtgs = []
 		batch_lens = []
 		batch_masks = []
+		batch_image_obs = []
 
 		# Episodic data. Keeps track of rewards per episode, will get cleared
 		# upon each new episode
@@ -186,17 +202,22 @@ class PPO:
 				if self.render and (self.logger['i_so_far'] % self.render_every_i == 0) and len(batch_lens) == 0:
 					self.env.render()
 
+				if hasattr(self.env, 'sim'):
+					batch_image_obs.append(self.nv.sim.render(camera_name='track', height=500, width=500)[::-1])
+				else:
+					batch_image_obs.append(self.env.render())
+
 				t += 1  # Increment timesteps ran this batch so far
 
 				# Track observations in this batch
 				if self.encoder:
 					# obs = self.encoder(obs[None, None, :]).detach().numpy() # will detach it from the graph?
 					obs = self.encoder(obs[None, None, :], detach=True).detach().numpy()
-                    # obs = self.encoder(obs[None, None, :])           
-				batch_obs.append(obs.flatten())
+					# obs = self.encoder(obs[None, None, :])           
+				batch_obs.append(obs)
 
 				# Calculate action and make a step in the env.
-				action, log_prob = self.get_action(obs.flatten())
+				action, log_prob = self.get_action(obs)
 				obs, rew, done, _ = self.env.step(action)
 
 				# Track recent reward, action, and action log probability
@@ -233,7 +254,7 @@ class PPO:
 		self.logger['batch_rews'] = batch_rews
 		self.logger['batch_lens'] = batch_lens
 
-		return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_masks
+		return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_masks, batch_image_obs
 
 	def compute_rtgs(self, batch_rews):
 		"""
@@ -396,10 +417,10 @@ class PPO:
 		#                       for rew in self.logger['batch_rews']])
 		avg_ep_rews = np.sum(self.logger['batch_rews']) / len(self.logger['batch_lens'])
 		avg_actor_loss = np.mean([losses.float().mean()
-		                         for losses in self.logger['actor_losses']])
+								 for losses in self.logger['actor_losses']])
 		avg_critic_loss = np.mean([losses.float().mean()
-                                  for losses in self.logger['critic_losses']])
-        
+								  for losses in self.logger['critic_losses']])
+		
 		# print("---", avg_ep_rews)
 		self.writer.add_scalar('Average Episodic Return', avg_ep_rews, i_so_far)
 		self.writer.add_scalar('Average Actor Loss', avg_actor_loss, i_so_far)
@@ -424,3 +445,4 @@ class PPO:
 		self.logger['batch_rews'] = []
 		self.logger['actor_losses'] = []
 		self.logger['batch_lens'] = []
+

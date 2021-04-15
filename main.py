@@ -81,7 +81,7 @@ def parse_args():
     parser.add_argument('--env', type=str, default='Sprites-v0')
     parser.add_argument('--reward', type=str, default='follow')
     parser.add_argument('--dataset_length', type=int, default=200)   
-    parser.add_argument('--total_timesteps', type=int, default=2_000_000) # The project description uses 5_000_000
+    parser.add_argument('--total_timesteps', type=int, default=1_000_000) # The project description uses 5_000_000
     args = parser.parse_args()
     return args
 
@@ -160,18 +160,19 @@ def main():
                     'max_timesteps_per_episode': 200,
                     'gamma': 0.99,
                     'gae_lamda': 0.95,
-                    'n_updates_per_iteration': 5,
-                    'lr': 3e-4,
+                    'n_updates_per_iteration': 10,
+                    'lr': 1e-3,
                     'clip': 0.2,
                     'render': True,
                     'render_every_i': 10
     }
    
     # Trains the RL model
-    cnn = CNN().to(device)
+    # cnn = CNN().to(device)
     # ppo = PPO(MLP, env, writer, model.encoder, **hyperparameters)
-    ppo = PPO(MLP, env, writer, cnn, **hyperparameters)
-    # ppo = PPO(MLP, env, writer, **hyperparameters)
+    # ppo = PPO(MLP, env, writer, cnn, **hyperparameters)
+    # ppo = PPO(CNN_MLP, env, writer, **hyperparameters)
+    ppo = PPO(MLP, env, writer, **hyperparameters) # oracle
 
     # Train the PPO model with a specified total timesteps
     ppo.learn(total_timesteps=args.total_timesteps)
