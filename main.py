@@ -168,9 +168,9 @@ def main():
     }
    
     # Trains the RL model
-    cnn = CNN().to(device)
-    # ppo = PPO(MLP, env, writer, model.encoder, **hyperparameters)
-    ppo = PPO(MLP, env, writer, cnn, **hyperparameters)
+    ppo = PPO(MLP, env, writer, model.encoder, **hyperparameters)
+    # cnn = CNN().to(device)
+    # ppo = PPO(MLP, env, writer, cnn, **hyperparameters)
     # ppo = PPO(CNN_MLP, env, writer, **hyperparameters)
     # ppo = PPO(MLP, env, writer, **hyperparameters) # oracle
 

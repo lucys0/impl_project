@@ -36,8 +36,8 @@ class PPO:
         self.env = env
         # self.obs_dim = (
         # 	env.observation_space.shape[0]) * (env.observation_space.shape[1])
-        # self.obs_dim = env.observation_space.shape[0]
-        self.obs_dim = 32 * 27 * 27 # cnn
+        self.obs_dim = env.observation_space.shape[0]
+        # self.obs_dim = 32 * 27 * 27 # cnn
         self.act_dim = env.action_space.shape[0]
             
         # Set the encoder and writer
@@ -115,6 +115,7 @@ class PPO:
             # convergence much more stable and faster.
             A_k = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
 
+            samples_get_clipped = 0
             # Update the network for some n epochs
             # ALG STEP 6 & 7
             for _ in range(self.n_updates_per_iteration):
@@ -139,7 +140,11 @@ class PPO:
                     # NOTE: take the negative min of the surrogate losses because we're trying to maximize
                     # the performance function, but Adam minimizes the loss. So minimizing the negative
                     # performance function maximizes it.
-                    actor_loss = (-torch.min(surr1, surr2)).mean()
+                    # actor_loss = (-torch.min(surr1, surr2)).mean()
+                    clipped = torch.min(surr1, surr2)
+                    actor_loss = -clipped.mean()
+                    if not torch.equal(surr1, clipped):
+                        samples_get_clipped += 1
                     critic_loss = nn.MSELoss()(V, returns_sample)
 
                     # Calculate gradients and perform backward propagation for actor network
@@ -156,8 +161,12 @@ class PPO:
                     self.logger['actor_losses'].append(actor_loss.detach())
                     self.logger['critic_losses'].append(critic_loss.detach())
 
+            
             # Print a summary of our training so far
             self._log_summary()
+            samples_get_clipped /= (self.n_updates_per_iteration * 32)
+            self.writer.add_scalar(
+                'Clipped portion', samples_get_clipped, i_so_far)
 
             # log/save
             if self.log_video:
