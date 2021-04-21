@@ -64,7 +64,6 @@ class TargetYReward(Reward):
     NAME = 'target_y'
 
     def __call__(self, trajectories, shapes):
-        print("---", trajectories[:, 1, 0])
         return trajectories[:, 1, 0]
 
 

@@ -20,8 +20,9 @@ def train(model, batch, optimizer, decoder_optimizer):
     avg_loss = 0.0
     avg_decoded_loss = 0.0
 
-    for obs, reward_targets in zip(batch['obs'], batch['rewards']):
+    for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
         optimizer.zero_grad()
+        reward_targets = torch.stack((agent_x, agent_y, target_x, target_y))
         reward_predicted = model(obs).squeeze()
         loss = model.criterion(reward_predicted, reward_targets)
         avg_loss += loss
@@ -74,7 +75,7 @@ def parse_args():
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--image_resolution', type=int, default=64)
     parser.add_argument('--time_steps', type=int, default=5)
-    parser.add_argument('--tasks', type=int, default=1)
+    parser.add_argument('--tasks', type=int, default=4)
     parser.add_argument('--conditioning_frames', type=int, default=2)
     parser.add_argument('--num_epochs', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=64)
@@ -122,7 +123,7 @@ def main():
         running_decoded_loss = 0.0
         num_batch = 0
         for batch in dl:
-            loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer) # here it's assumed that there's only one task - fix it?
+            loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer) 
             running_loss += loss
             # decoded_loss, decoded_img = test(t_model, decoder_optimizer, batch)
             running_decoded_loss += decoded_loss
