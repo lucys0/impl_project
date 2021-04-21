@@ -94,7 +94,7 @@ class MLP(nn.Module):
 
 class CNN_MLP(nn.Module):
     def __init__(self, input_size, output_size, hidden_units=64):
-        super(MLP, self).__init__()
+        super(CNN_MLP, self).__init__()
         self.convs = nn.ModuleList(
             [nn.Conv2d(1, 32, kernel_size=3, stride=2)])  # 31
         self.convs.append(nn.Conv2d(32, 32, kernel_size=3, stride=1))  # 29

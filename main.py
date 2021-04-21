@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 import cv2
-from model import Model, Test, MLP, CNN
+from model import Model, Test, MLP, CNN, CNN_MLP
 from sprites_env.envs import sprites
 from torchvision.utils import save_image
 import torchvision
@@ -171,8 +171,8 @@ def main():
     # cnn = CNN().to(device)
     # ppo = PPO(MLP, env, writer, model.encoder, **hyperparameters)
     # ppo = PPO(MLP, env, writer, cnn, **hyperparameters)
-    # ppo = PPO(CNN_MLP, env, writer, **hyperparameters)
-    ppo = PPO(MLP, env, writer, **hyperparameters) # oracle
+    ppo = PPO(CNN_MLP, env, writer, **hyperparameters)
+    # ppo = PPO(MLP, env, writer, **hyperparameters) # oracle
 
     # Train the PPO model with a specified total timesteps
     ppo.learn(total_timesteps=args.total_timesteps)

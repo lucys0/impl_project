@@ -9,6 +9,7 @@ from torch.optim import Adam
 from torch.distributions import MultivariateNormal
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 
 """
 	This PPO implementation follows the pseudocode provided in OpenAI's Spinning Up for PPO: 
@@ -35,8 +36,8 @@ class PPO:
 		self.env = env
 		# self.obs_dim = (
 		# 	env.observation_space.shape[0]) * (env.observation_space.shape[1])
-		self.obs_dim = env.observation_space.shape[0]
-		# self.obs_dim = 32 * 27 * 27 # cnn
+		# self.obs_dim = env.observation_space.shape[0]
+		self.obs_dim = 32 * 27 * 27 # cnn
 		self.act_dim = env.action_space.shape[0]
 			
 		# Set the encoder and writer
@@ -159,6 +160,34 @@ class PPO:
 				video = torch.tensor(batch_image_obs).unsqueeze(0).unsqueeze(2)
 				self.writer.add_video('{}'.format('train_rollouts'), video, i_so_far-1, fps=10)
 
+	def feed_forward_generator(self, advantages):
+        num_mini_batch = 32
+        mini_batch_size = self.timesteps_per_batch // num_mini_batch # 2048/32
+		batch_size = self.timesteps_per_batch
+        
+		sampler = BatchSampler(
+            SubsetRandomSampler(range(batch_size)),
+            mini_batch_size,
+            drop_last=True)
+        for indices in sampler:
+            obs_batch = self.obs[:-1].view(-1, *self.obs.size()[2:])[indices]
+            recurrent_hidden_states_batch = self.recurrent_hidden_states[:-1].view(
+                -1, self.recurrent_hidden_states.size(-1))[indices]
+            actions_batch = self.actions.view(-1,
+                                              self.actions.size(-1))[indices]
+            value_preds_batch = self.value_preds[:-1].view(-1, 1)[indices]
+            return_batch = self.returns[:-1].view(-1, 1)[indices]
+            masks_batch = self.masks[:-1].view(-1, 1)[indices]
+            old_action_log_probs_batch = self.action_log_probs.view(-1,
+                                                                    1)[indices]
+            if advantages is None:
+                adv_targ = None
+            else:
+                adv_targ = advantages.view(-1, 1)[indices]
+
+            yield obs_batch, recurrent_hidden_states_batch, actions_batch, \
+                value_preds_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
+
 	def rollout(self):
 		"""
 			Collect the batch of data from simulation. Since this is an on-policy algorithm, a fresh batch of data need to 
@@ -202,6 +231,7 @@ class PPO:
 				if self.render and (self.logger['i_so_far'] % self.render_every_i == 0) and len(batch_lens) == 0:
 					self.env.render()
 
+				# video
 				if hasattr(self.env, 'sim'):
 					batch_image_obs.append(self.nv.sim.render(camera_name='track', height=500, width=500)[::-1])
 				else:
@@ -301,7 +331,7 @@ class PPO:
 			gae = delta + self.gamma * self.gae_lambda * batch_masks[step + 1] * gae
 			batch_returns.insert(0, gae + V[step])
 
-		# Convert the rewards-to-go into a tensor
+		# Convert the batch_returns into a tensor
 		batch_returns = torch.tensor(batch_returns, dtype=torch.float)
 
 		return batch_returns
