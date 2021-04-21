@@ -71,11 +71,11 @@ class CNN(nn.Module):
         # freeze
         if detach:
             x.detach()
-        return x
+        return x.flatten()
 
 # Build a 3-layer feedforward neural network
 class MLP(nn.Module):
-    def __init__(self, input_size, output_size, hidden_units=32):
+    def __init__(self, input_size, output_size, hidden_units=64):
         super(MLP, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_units)     
         self.fc2 = nn.Linear(hidden_units, output_size)
