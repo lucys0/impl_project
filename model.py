@@ -24,14 +24,18 @@ class Encoder(nn.Module):
     def forward(self, x, detach=False):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float)
+        if len(x.shape) == 3:
+            x = x.unsqueeze(1)
+        if len(x.shape) == 2:
+            x = x[None, None, :]
         for i in range(6):
             x = torch.relu(self.convs[i](x))
-        x = self.fc(x.squeeze())
+        out = self.fc(x.squeeze())
 
         # freeze the encoder
         if detach:
-            x.detach()
-        return x
+            out.detach()
+        return out
 
 
 class CNN(nn.Module):

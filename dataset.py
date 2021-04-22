@@ -22,7 +22,7 @@ def reward_class(reward):
     if reward == 'target_y':
         return TargetYReward
     if reward == 'follow':
-        return list((AgentXReward, AgentYReward, TargetXReward, TargetYReward))
+        return FollowReward
     else:
         return None
 
@@ -37,11 +37,11 @@ class TrainingDataset(Dataset):
             traj = dataset[i]
             for t in range(frames, time_steps):
                 data = AttrDict()
-                # data.rewards = traj['rewards']
-                data.agent_x = traj['rewards']['agent_x']
-                data.agent_y = traj['rewards']['agent_y']
-                data.target_x = traj['rewards']['target_x']
-                data.target_y = traj['rewards']['target_y']
+                data.rewards = traj['rewards'][reward]
+                # data.agent_x = traj['rewards']['agent_x']
+                # data.agent_y = traj['rewards']['agent_y']
+                # data.target_x = traj['rewards']['target_x']
+                # data.target_y = traj['rewards']['target_y']
                 data.obs = traj['images'][t-frames:t+1, 0, :, :].squeeze()
                 assert len(data.obs) == frames+1
                 data.states = traj['states'][t-frames:t+1, :].squeeze()
@@ -63,7 +63,7 @@ def dataloader(image_resolution, time_steps, batch_size, frames, reward, dataset
         max_speed=0.05,      # total image range [0, 1]
         obj_size=0.2,       # size of objects, full images is 1.0
         shapes_per_traj=2,      # number of shapes per trajectory
-        rewards=reward_class(reward),
+        rewards=[reward_class(reward)],
         # length = dataset_length,
     )
     gen = moving_sprites.DistractorTemplateMovingSpritesGenerator(spec)
