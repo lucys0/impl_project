@@ -56,13 +56,15 @@ class PPO:
             self.actor = policy_class(self.obs_dim, self.act_dim)
             self.critic = policy_class(self.obs_dim, 1)
 
+        self.log_std = torch.tensor(0, requires_grad=True, dtype=float)
         # Initialize optimizers for actor and critic
-        self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
+        self.actor_optim = Adam(self.actor.parameters(), self.log_std, lr=self.lr) # #
         self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
 
         # Initialize the covariance matrix used to query the actor for actions
-        self.cov_var = torch.full(size=(self.act_dim,), fill_value=0.5)
-        self.cov_mat = torch.diag(self.cov_var)
+        # self.cov_var = torch.full(size=(self.act_dim,), fill_value=0.5)
+        # self.cov_mat = torch.diag(self.cov_var)
+        
 
         # This logger will help us with printing out summaries of each iteration
         self.logger = {
@@ -361,9 +363,9 @@ class PPO:
         """
         # Query the actor network for a mean action
         mean = self.actor(obs)
-
+        
         # Create a distribution with the mean action and std from the covariance matrix above.
-        dist = MultivariateNormal(mean, self.cov_mat)
+        dist = MultivariateNormal(mean, torch.exp(self.log_std))
 
         # Sample an action from the distribution
         action = dist.sample()
@@ -393,7 +395,7 @@ class PPO:
 
         # Calculate the log probabilities of batch actions using most recent actor network.
         mean = self.actor(batch_obs)
-        dist = MultivariateNormal(mean, self.cov_mat)
+        dist = MultivariateNormal(mean, torch.exp(self.log_std))
         log_probs = dist.log_prob(batch_acts)
 
         # Return the value vector V of each observation in the batch
