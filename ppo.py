@@ -6,7 +6,7 @@ import time
 import torch
 import torch.nn as nn
 from torch.optim import Adam
-from torch.distributions import MultivariateNormal
+from torch.distributions import Normal
 import torchvision
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
@@ -50,21 +50,23 @@ class PPO:
      # Initialize actor and critic networks
         # ALG STEP 1
         if self.encoder:
-            self.actor = nn.Sequential(self.encoder, policy_class(self.obs_dim, self.act_dim))
-            self.critic = nn.Sequential(self.encoder, policy_class(self.obs_dim, 1))
+            self.actor = nn.Sequential(self.encoder, policy_class(self.obs_dim, self.act_dim, is_actor=True))
+            self.critic = nn.Sequential(self.encoder, policy_class(self.obs_dim, 1, is_actor=False))
         else:
             self.actor = policy_class(self.obs_dim, self.act_dim)
             self.critic = policy_class(self.obs_dim, 1)
 
-        self.log_std = torch.tensor(0, requires_grad=True, dtype=float)
         # Initialize optimizers for actor and critic
-        self.actor_optim = Adam(self.actor.parameters(), self.log_std, lr=self.lr) # #
+        # params = list(self.actor.parameters()) + list(self.log_std)
+        # self.actor_optim = Adam(itertools.chain(*params), lr=self.lr)
         self.critic_optim = Adam(self.critic.parameters(), lr=self.lr)
+        self.actor_optim = Adam(self.actor.parameters(), lr=self.lr)
+        self.log_std = torch.tensor(0.0, requires_grad=True)
+        self.actor_optim.add_param_group({'params': self.log_std})
 
         # Initialize the covariance matrix used to query the actor for actions
         # self.cov_var = torch.full(size=(self.act_dim,), fill_value=0.5)
-        # self.cov_mat = torch.diag(self.cov_var)
-        
+        # self.cov_mat = torch.diag(self.cov_var)       
 
         # This logger will help us with printing out summaries of each iteration
         self.logger = {
@@ -137,7 +139,7 @@ class PPO:
 
                         # Calculate the ratio pi_theta(a_t | s_t) / pi_theta_k(a_t | s_t)
                         ratios = torch.exp(curr_log_probs - log_probs_sample)
-
+                        
                         # Calculate surrogate losses.
                         surr1 = ratios * advantages_sample
                         surr2 = torch.clamp(ratios, 1 - self.clip, 1 +
@@ -159,18 +161,15 @@ class PPO:
                         self.critic_optim.zero_grad()
                         
                         actor_loss.backward(retain_graph=True)
-                        critic_loss.backward()
-                        
+                        critic_loss.backward()                   
                         
                         self.actor_optim.step()  
-                        self.critic_optim.step()
-                        
+                        self.critic_optim.step()                       
 
                         # Log actor and critic loss
                         self.logger['actor_losses'].append(actor_loss.detach())
                         self.logger['critic_losses'].append(critic_loss.detach())
-
-                
+               
                 # Print a summary of our training so far
                 self._log_summary()
                 samples_get_clipped /= (self.n_updates_per_iteration * 32)
@@ -242,23 +241,15 @@ class PPO:
 
             # Run an episode for a maximum of max_timesteps_per_episode timesteps
             for ep_t in range(self.max_timesteps_per_episode):
-                # If render is specified, render the environment
-                if self.render and (self.logger['i_so_far'] % self.render_every_i == 0) and len(batch_lens) == 0:
-                    self.env.render()
-
-                # video
-                if hasattr(self.env, 'sim'):
-                    batch_image_obs.append(self.nv.sim.render(camera_name='track', height=500, width=500)[::-1])
-                else:
-                    batch_image_obs.append(self.env.render())
+                # Prepare video
+                batch_image_obs.append(self.env.render())
 
                 t += 1  # Increment timesteps ran this batch so far
 
                 # Track observations in this batch
                 # if self.encoder:
-                #     obs = self.encoder(obs[None, None, :]).detach().numpy() # will detach it from the graph?
-                    # obs = self.encoder(obs[None, None, :], detach=True).detach().numpy()
-                    # obs = self.encoder(obs[None, None, :])           
+                    # obs = self.encoder(obs[None, None, :]).detach().numpy()
+                    # obs = self.encoder(obs[None, None, :], detach=True).detach().numpy()        
                 # obs = torch.from_numpy(obs[None, :]).float()
                 batch_obs.append(obs)
 
@@ -290,9 +281,6 @@ class PPO:
         batch_obs = torch.tensor(batch_obs, dtype=torch.float)
         batch_acts = torch.tensor(batch_acts, dtype=torch.float)
         batch_log_probs = torch.tensor(batch_log_probs, dtype=torch.float)
-        # batch_obs = torch.stack(batch_obs, dim=0)
-        # batch_acts = torch.stack(batch_acts, dim=0)
-        # batch_log_probs = torch.stack(batch_log_probs, dim=0)
         # ALG STEP 4
         # batch_rtgs = self.compute_rtgs(batch_rews)
 
@@ -365,16 +353,16 @@ class PPO:
         mean = self.actor(obs)
         
         # Create a distribution with the mean action and std from the covariance matrix above.
-        dist = MultivariateNormal(mean, torch.exp(self.log_std))
+        dist = Normal(mean, torch.exp(self.log_std))
 
         # Sample an action from the distribution
         action = dist.sample()
 
         # Calculate the log probability for that action
-        log_prob = dist.log_prob(action)
+        log_prob = dist.log_prob(action).sum(-1, keepdim=True)
 
         # Return the sampled action and the log probability of that action in our distribution
-        return action.detach().numpy(), log_prob.detach()
+        return action.detach().numpy(), log_prob.detach().numpy()
 
     def evaluate(self, batch_obs, batch_acts):
         """
@@ -395,8 +383,8 @@ class PPO:
 
         # Calculate the log probabilities of batch actions using most recent actor network.
         mean = self.actor(batch_obs)
-        dist = MultivariateNormal(mean, torch.exp(self.log_std))
-        log_probs = dist.log_prob(batch_acts)
+        dist = Normal(mean, torch.exp(self.log_std))
+        log_probs = dist.log_prob(batch_acts).sum(-1, keepdim=True)
 
         # Return the value vector V of each observation in the batch
         # and log probabilities log_probs of each action in the batch

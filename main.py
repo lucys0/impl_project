@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader
 import cv2
-from model import Model, Test, MLP, CNN, CNN_MLP
+from model import *
 from sprites_env.envs import sprites
 from torchvision.utils import save_image
 import torchvision
@@ -74,15 +74,15 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--image_resolution', type=int, default=64)
-    parser.add_argument('--time_steps', type=int, default=5)
+    parser.add_argument('--time_steps', type=int, default=30)
     parser.add_argument('--tasks', type=int, default=1)
-    parser.add_argument('--conditioning_frames', type=int, default=2)
+    parser.add_argument('--conditioning_frames', type=int, default=5)
     parser.add_argument('--num_epochs', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=64)
-    parser.add_argument('--env', type=str, default='Sprites-v1')
+    parser.add_argument('--env', type=str, default='Sprites-v0')
     parser.add_argument('--reward', type=str, default='follow')
     parser.add_argument('--dataset_length', type=int, default=200)   
-    parser.add_argument('--total_timesteps', type=int, default=1_000_000) # The project description uses 5_000_000
+    parser.add_argument('--total_timesteps', type=int, default=2_000_000) # The project description uses 5_000_000
     args = parser.parse_args()
     return args
 
@@ -142,14 +142,14 @@ def main():
         writer.add_scalar('Loss/decoded', running_decoded_loss, epoch)
 
         if epoch % 5 == 0:           
-            decoded_img = (decoded_img + 1.0) * 255.0 / 2.0 
+            decoded_img = decoded_img * 255.0
             writer.add_image('decoded_epoch{}'.format(epoch), decoded_img.to(torch.uint8))
            
             # save_decod_img(decoded_img.unsqueeze(0).cpu().data, epoch)           
 
     # decode and generate images with respect to reward functions
     output = model.test_decode(traj_images)
-    output = (output + 1.0) * 255 / 2.0    
+    output = output * 255
 
     img = make_image_seq_strip([output[None, :, None].repeat(3, axis=2).astype(np.float32)], sep_val=255.0).astype(np.uint8)   
     writer.add_image('ground_truth', ground_truth)
@@ -169,7 +169,7 @@ def main():
     }
    
     # Trains the RL model
-    ppo = PPO(MLP, env, writer, model.encoder, **hyperparameters)
+    ppo = PPO(MLP_2, env, writer, model.encoder, **hyperparameters)
     # cnn = CNN().to(device)
     # ppo = PPO(MLP, env, writer, cnn, **hyperparameters)
     # ppo = PPO(CNN_MLP, env, writer, **hyperparameters)
