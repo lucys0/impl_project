@@ -50,8 +50,8 @@ class PPO:
      # Initialize actor and critic networks
         # ALG STEP 1
         if self.encoder:
-            self.actor = nn.Sequential(self.encoder, policy_class(self.obs_dim, self.act_dim, is_actor=True))
-            self.critic = nn.Sequential(self.encoder, policy_class(self.obs_dim, 1, is_actor=False))
+            self.actor = nn.Sequential(self.encoder, policy_class(self.obs_dim*3, self.act_dim, is_actor=True))
+            self.critic = nn.Sequential(self.encoder, policy_class(self.obs_dim*3, 1, is_actor=False))
         else:
             self.actor = policy_class(self.obs_dim, self.act_dim)
             self.critic = policy_class(self.obs_dim, 1)
@@ -237,6 +237,8 @@ class PPO:
 
             # Reset the environment.
             obs = self.env.reset()
+            prev_frame = np.copy(obs)
+            prev_prev_frame = np.copy(prev_frame)
             done = False
 
             # Run an episode for a maximum of max_timesteps_per_episode timesteps
@@ -251,10 +253,13 @@ class PPO:
                     # obs = self.encoder(obs[None, None, :]).detach().numpy()
                     # obs = self.encoder(obs[None, None, :], detach=True).detach().numpy()        
                 # obs = torch.from_numpy(obs[None, :]).float()
-                batch_obs.append(obs)
-
+                obs_frames = np.stack((prev_prev_frame, prev_frame, obs), axis=0)
+                batch_obs.append(obs_frames)
+                prev_prev_frame = np.copy(prev_frame)
+                prev_frame = np.copy(obs)
+                
                 # Calculate action and make a step in the env.
-                action, log_prob = self.get_action(obs)
+                action, log_prob = self.get_action(obs_frames)
                 obs, rew, done, _ = self.env.step(action)
 
                 # Track recent reward, action, and action log probability
@@ -379,10 +384,14 @@ class PPO:
                 log_probs - the log probabilities of the actions taken in batch_acts given batch_obs
         """
         # Query critic network for a value V for each batch_obs. Shape of V should be same as batch_rtgs
-        V = self.critic(batch_obs).squeeze()
-
+        V = []
+        mean = []
+        for obs in batch_obs:
+            V.append(self.critic(obs).squeeze())
+            mean.append(self.actor(obs))
+        V = torch.stack(V)
+        mean = torch.stack(mean)
         # Calculate the log probabilities of batch actions using most recent actor network.
-        mean = self.actor(batch_obs)
         dist = Normal(mean, torch.exp(self.log_std))
         log_probs = dist.log_prob(batch_acts).sum(-1, keepdim=True)
 
