@@ -93,96 +93,96 @@ class PPO:
         t_so_far = 0  # Timesteps simulated so far
         i_so_far = 0  # Iterations ran so far
         # ALG STEP 2
-        with torch.autograd.set_detect_anomaly(True):
-            while t_so_far < total_timesteps:
-                # decide if videos should be rendered/logged at this iteration
-                if i_so_far % 10 == 0:  # video_log_freq, a hyperparameter
-                    self.log_video = True
-                else:
-                    self.log_video = False
+        while t_so_far < total_timesteps:
+            # decide if videos should be rendered/logged at this iteration
+            if i_so_far % 10 == 0:  # video_log_freq, a hyperparameter
+                self.log_video = True
+            else:
+                self.log_video = False
 
-                batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_masks, batch_image_obs = self.rollout(
-                )                     # ALG STEP 3
+            batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_masks, batch_image_obs = self.rollout(
+            )                     # ALG STEP 3
 
-                # Calculate how many timesteps we collected this batch
-                t_so_far += np.sum(batch_lens)
+            # Calculate how many timesteps we collected this batch
+            t_so_far += np.sum(batch_lens)
 
-                # Increment the number of iterations
-                i_so_far += 1
+            # Increment the number of iterations
+            i_so_far += 1
 
-                # Logging timesteps so far and iterations so far
-                self.logger['t_so_far'] = t_so_far
-                self.logger['i_so_far'] = i_so_far
+            # Logging timesteps so far and iterations so far
+            self.logger['t_so_far'] = t_so_far
+            self.logger['i_so_far'] = i_so_far
 
-                # Calculate advantage at k-th iteration
-                V, _ = self.evaluate(batch_obs, batch_acts)
-                # ALG STEP 5
-                batch_returns = self.compute_returns(batch_rews, V.detach().numpy(), batch_masks)
-                A_k = batch_returns - V.detach()
+            # Calculate advantage at k-th iteration
+            V, _ = self.evaluate(batch_obs, batch_acts)
+            # ALG STEP 5
+            batch_returns = self.compute_returns(batch_rews, V.detach().numpy(), batch_masks)
+            A_k = batch_returns - V.detach()
 
-                # Normalizing advantages to decrease the variance and makes
-                # convergence much more stable and faster.
-                advantage = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
+            # Normalizing advantages to decrease the variance and makes
+            # convergence much more stable and faster.
+            advantage = (A_k - A_k.mean()) / (A_k.std() + 1e-10)
 
-                samples_get_clipped = 0
-                # Update the network for some n epochs
-                # ALG STEP 6 & 7
-                for _ in range(self.n_updates_per_iteration):
-                    data_generator = self.generator(
-                        batch_obs, batch_acts, batch_log_probs, batch_returns, advantage)
+            samples_get_clipped = 0
+            # Update the network for some n epochs
+            # ALG STEP 6 & 7
+            for _ in range(self.n_updates_per_iteration):
+                data_generator = self.generator(
+                    batch_obs, batch_acts, batch_log_probs, batch_returns, advantage)
+                
+                for sample in data_generator:
+                    obs_sample, actions_sample, log_probs_sample, returns_sample, advantages_sample = sample
                     
-                    for sample in data_generator:
-                        obs_sample, actions_sample, log_probs_sample, returns_sample, advantages_sample = sample
-                        
-                        # Calculate V_phi and pi_theta(a_t | s_t)
-                        V, curr_log_probs = self.evaluate(obs_sample, actions_sample)
+                    # Calculate V_phi and pi_theta(a_t | s_t)
+                    V, curr_log_probs = self.evaluate(obs_sample, actions_sample)
 
-                        # Calculate the ratio pi_theta(a_t | s_t) / pi_theta_k(a_t | s_t)
-                        ratios = torch.exp(curr_log_probs - log_probs_sample)
-                        
-                        # Calculate surrogate losses.
-                        surr1 = ratios * advantages_sample
-                        surr2 = torch.clamp(ratios, 1 - self.clip, 1 +
-                                            self.clip) * advantages_sample
+                    # Calculate the ratio pi_theta(a_t | s_t) / pi_theta_k(a_t | s_t)
+                    ratios = torch.exp(curr_log_probs - log_probs_sample)
+                    
+                    # Calculate surrogate losses.
+                    surr1 = ratios * advantages_sample
+                    surr2 = torch.clamp(ratios, 1 - self.clip, 1 +
+                                        self.clip) * advantages_sample
 
-                        # Calculate actor and critic losses.
-                        # NOTE: take the negative min of the surrogate losses because we're trying to maximize
-                        # the performance function, but Adam minimizes the loss. So minimizing the negative
-                        # performance function maximizes it.
-                        # actor_loss = (-torch.min(surr1, surr2)).mean()
-                        clipped = torch.min(surr1, surr2)                       
-                        if not torch.equal(surr1, clipped):
-                            samples_get_clipped += 1
-                        
-                        actor_loss = -clipped.mean()
-                        self.actor_optim.zero_grad()
-                        
-                        critic_loss = nn.MSELoss()(V, returns_sample)
-                        self.critic_optim.zero_grad()
-                        
-                        actor_loss.backward(retain_graph=True)
-                        critic_loss.backward()                   
-                        
-                        self.actor_optim.step()  
-                        self.critic_optim.step()                       
+                    # Calculate actor and critic losses.
+                    # NOTE: take the negative min of the surrogate losses because we're trying to maximize
+                    # the performance function, but Adam minimizes the loss. So minimizing the negative
+                    # performance function maximizes it.
+                    # actor_loss = (-torch.min(surr1, surr2)).mean()
+                    clipped = torch.min(surr1, surr2)
+                    print("----", surr1.shape)                      
+                    if not torch.equal(surr1, clipped):
+                        samples_get_clipped += 1
+                    
+                    actor_loss = -clipped.mean()
+                    self.actor_optim.zero_grad()
+                    
+                    critic_loss = nn.MSELoss()(V, returns_sample)
+                    self.critic_optim.zero_grad()
+                    
+                    actor_loss.backward(retain_graph=True)
+                    critic_loss.backward()                   
+                    
+                    self.actor_optim.step()  
+                    self.critic_optim.step()                       
 
-                        # Log actor and critic loss
-                        self.logger['actor_losses'].append(actor_loss.detach())
-                        self.logger['critic_losses'].append(critic_loss.detach())
-               
-                # Print a summary of our training so far
-                self._log_summary()
-                samples_get_clipped /= (self.n_updates_per_iteration * 32)
-                self.writer.add_scalar(
-                    'Clipped portion', samples_get_clipped, i_so_far)
+                    # Log actor and critic loss
+                    self.logger['actor_losses'].append(actor_loss.detach())
+                    self.logger['critic_losses'].append(critic_loss.detach())
+            
+            # Print a summary of our training so far
+            self._log_summary()
+            samples_get_clipped /= (self.n_updates_per_iteration * 32)
+            self.writer.add_scalar(
+                'Clipped portion', samples_get_clipped, i_so_far)
 
-                # log/save
-                if self.log_video:
-                    # perform logging
-                    print('\nBeginning logging procedure...')
-                    # Need [N, T, C, H, W] input tensor for video logging
-                    video = torch.tensor(batch_image_obs).unsqueeze(0).unsqueeze(2)
-                    self.writer.add_video('{}'.format('train_rollouts'), video, i_so_far-1, fps=10)
+            # log/save
+            if self.log_video:
+                # perform logging
+                print('\nBeginning logging procedure...')
+                # Need [N, T, C, H, W] input tensor for video logging
+                video = torch.tensor(batch_image_obs).unsqueeze(0).unsqueeze(2)
+                self.writer.add_video('{}'.format('train_rollouts'), video, i_so_far-1, fps=10)
 
     def generator(self, batch_obs, batch_acts, batch_log_probs, batch_returns, A_k):
         num_mini_batch = 32
