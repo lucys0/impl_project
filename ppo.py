@@ -77,6 +77,8 @@ class PPO:
             'batch_rews': [],       # episodic returns in batch
             'actor_losses': [],     # losses of actor network in current iteration
             'critic_losses': [],
+            'clipped_fraction': [],
+            'batch_entropy': [],
         }
 
     def learn(self, total_timesteps):
@@ -148,13 +150,15 @@ class PPO:
                     # NOTE: take the negative min of the surrogate losses because we're trying to maximize
                     # the performance function, but Adam minimizes the loss. So minimizing the negative
                     # performance function maximizes it.
-                    # actor_loss = (-torch.min(surr1, surr2)).mean()
-                    clipped = torch.min(surr1, surr2)
-                    print("----", surr1.shape)                      
-                    if not torch.equal(surr1, clipped):
-                        samples_get_clipped += 1
+                    actor_loss = (-torch.min(surr1, surr2)).mean()
+                    # clipped = torch.min(surr1, surr2)
+                    # print("----", surr1.shape)   
+                    bool_tensor = torch.all(torch.eq(surr1, surr2), dim=1).squeeze()
+                    false_values = bool_tensor.masked_select(bool_tensor == False)
+                    false_num = len(false_values)
+                    samples_get_clipped += false_num
                     
-                    actor_loss = -clipped.mean()
+                    # actor_loss = -clipped.mean()
                     self.actor_optim.zero_grad()
                     
                     critic_loss = nn.MSELoss()(V, returns_sample)
@@ -170,11 +174,13 @@ class PPO:
                     self.logger['actor_losses'].append(actor_loss.detach())
                     self.logger['critic_losses'].append(critic_loss.detach())
             
+            
+            # 32 is the number of sampled batches, 64 is the mini_batch_size
+            samples_get_clipped /= (self.n_updates_per_iteration * 32 * 64)
+            self.logger['clipped_fraction'] = samples_get_clipped
+
             # Print a summary of our training so far
             self._log_summary()
-            samples_get_clipped /= (self.n_updates_per_iteration * 32)
-            self.writer.add_scalar(
-                'Clipped portion', samples_get_clipped, i_so_far)
 
             # log/save
             if self.log_video:
@@ -224,6 +230,7 @@ class PPO:
         batch_lens = []
         batch_masks = []
         batch_image_obs = []
+        batch_entropy = []
 
         # Episodic data. Keeps track of rewards per episode, will get cleared
         # upon each new episode
@@ -254,7 +261,7 @@ class PPO:
                 batch_obs.append(obs)
 
                 # Calculate action and make a step in the env.
-                action, log_prob = self.get_action(obs)
+                action, log_prob, entropy = self.get_action(obs)
                 obs, rew, done, _ = self.env.step(action)
 
                 # Track recent reward, action, and action log probability
@@ -262,6 +269,7 @@ class PPO:
                 batch_rews.append(rew)
                 batch_acts.append(action)
                 batch_log_probs.append(log_prob)
+                batch_entropy.append(entropy)
 
                 # If the environment tells us the episode is terminated, break
                 if done:
@@ -287,6 +295,7 @@ class PPO:
         # Log the episodic returns and episodic lengths in this batch.
         self.logger['batch_rews'] = batch_rews
         self.logger['batch_lens'] = batch_lens
+        self.logger['batch_entropy'] = batch_entropy
 
         return batch_obs, batch_acts, batch_log_probs, batch_rews, batch_lens, batch_masks, batch_image_obs
 
@@ -361,8 +370,11 @@ class PPO:
         # Calculate the log probability for that action
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
 
+        # Record the entropy of policy
+        entropy = dist.entropy().mean()
+
         # Return the sampled action and the log probability of that action in our distribution
-        return action.detach().numpy(), log_prob.detach().numpy()
+        return action.detach().numpy(), log_prob.detach().numpy(), entropy.detach().numpy()
 
     def evaluate(self, batch_obs, batch_acts):
         """
@@ -447,6 +459,7 @@ class PPO:
         # Calculate logging values.
         t_so_far = self.logger['t_so_far']
         i_so_far = self.logger['i_so_far']
+        clipped_fraction = self.logger['clipped_fraction']
         # avg_ep_rews = np.mean([np.sum(rew)
         #                       for rew in self.logger['batch_rews']])
         avg_ep_rews = np.sum(self.logger['batch_rews']) / len(self.logger['batch_lens'])
@@ -454,23 +467,30 @@ class PPO:
                                  for losses in self.logger['actor_losses']])
         avg_critic_loss = np.mean([losses.float().mean()
                                   for losses in self.logger['critic_losses']])
+        avg_entropy = np.mean(self.logger['batch_entropy'])
         
         # print("---", avg_ep_rews)
         self.writer.add_scalar('Average Episodic Return', avg_ep_rews, i_so_far)
         self.writer.add_scalar('Average Actor Loss', avg_actor_loss, i_so_far)
         self.writer.add_scalar('Average Critic Loss', avg_critic_loss, i_so_far)
+        self.writer.add_scalar('Average Policy Entropy', avg_entropy, i_so_far)
+        self.writer.add_scalar('Clipped portion', clipped_fraction, i_so_far)
 
-        # Round decimal places for more aesthetic logging messages
-        avg_ep_rews = str(round(avg_ep_rews, 2))
-        avg_actor_loss = str(round(avg_actor_loss, 5))
-
-        # Print logging statements
         if i_so_far % 10 == 0:
+            # Round decimal places for more aesthetic logging messages
+            avg_ep_rews = str(round(avg_ep_rews, 2))
+            avg_actor_loss = str(round(avg_actor_loss, 5))
+            clipped_fraction = str(round(clipped_fraction, 5))
+            avg_entropy = str(round(avg_entropy, 5))
+
+            # Print logging statements
             print(flush=True)
             print(
                 f"-------------------- Iteration #{i_so_far} --------------------", flush=True)
             print(f"Average Episodic Return: {avg_ep_rews}", flush=True)
             print(f"Average Loss: {avg_actor_loss}", flush=True)
+            print(f"Average Entropy: {avg_entropy}", flush=True)
+            print(f"Clipped Fraction: {clipped_fraction}", flush=True)
             print(f"Timesteps So Far: {t_so_far}", flush=True)
             print(f"------------------------------------------------------", flush=True)
             print(flush=True)
@@ -479,4 +499,6 @@ class PPO:
         self.logger['batch_rews'] = []
         self.logger['actor_losses'] = []
         self.logger['batch_lens'] = []
+        self.logger['clipped_fraction'] = []
+        self.logger['batch_entropy'] = []
 
