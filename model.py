@@ -28,7 +28,6 @@ class Encoder(nn.Module):
             x = x.unsqueeze(1)
         if len(x.shape) == 2:
             x = x[None, None, :]
-        # print("---", x.shape)
         for i in range(6):
             x = torch.relu(self.convs[i](x))
         out = self.fc(x.squeeze())
@@ -72,7 +71,6 @@ class MLP_2(nn.Module):
     def forward(self, x):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float)
-        x = x.flatten()
         hidden_layer = self.relu(self.fc1(x))
         if self.is_actor:
             # [-1, 1]
