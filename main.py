@@ -75,15 +75,15 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--learning_rate', type=float, default=1e-3)
     parser.add_argument('--image_resolution', type=int, default=64)
-    parser.add_argument('--time_steps', type=int, default=30)
+    parser.add_argument('--time_steps', type=int, default=5)
     parser.add_argument('--tasks', type=int, default=1)
-    parser.add_argument('--conditioning_frames', type=int, default=5)
+    parser.add_argument('--conditioning_frames', type=int, default=2)
     parser.add_argument('--num_epochs', type=int, default=0)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--env', type=str, default='Sprites-v0')
     parser.add_argument('--reward', type=str, default='follow')
     parser.add_argument('--dataset_length', type=int, default=200)   
-    parser.add_argument('--total_timesteps', type=int, default=2_000_000) # The project description uses 5_000_000
+    parser.add_argument('--total_timesteps', type=int, default=5_000_000) # The project description uses 5_000_000
     parser.add_argument('--random_seed', type=int, default=None)
     args = parser.parse_args()
     return args
