@@ -36,8 +36,8 @@ class PPO:
         self.env = env
         # self.obs_dim = (
         # 	env.observation_space.shape[0]) * (env.observation_space.shape[1])
-        self.obs_dim = env.observation_space.shape[0]
-        # self.obs_dim = 32 * 27 * 27 # cnn
+        # self.obs_dim = env.observation_space.shape[0]
+        self.obs_dim = 32 * 27 * 27 # cnn
         self.act_dim = env.action_space.shape[0]
             
         # Set the encoder and writer

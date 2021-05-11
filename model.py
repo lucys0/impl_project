@@ -110,14 +110,17 @@ class CNN(nn.Module):
     def forward(self, x, detach=False):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float)
+        if len(x.shape) == 3:
+            x = x.unsqueeze(1)
+        if len(x.shape) == 2:
+            x = x[None, None, :]
         for i in range(3):
             x = torch.relu(self.convs[i](x))
-        # x = self.fc(x.squeeze())
 
         # freeze
         if detach:
             x.detach()
-        return x.flatten()
+        return x.view(-1, 32*27*27)
 
 
 class CNN_MLP(nn.Module):
