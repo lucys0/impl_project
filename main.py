@@ -20,8 +20,8 @@ def train(model, batch, optimizer, decoder_optimizer):
     avg_loss = 0.0
     avg_decoded_loss = 0.0
 
-    for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
     # for obs, reward_targets in zip(batch['obs'], batch['rewards']):
+    for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
         optimizer.zero_grad()
         reward_targets = torch.stack((agent_x, agent_y, target_x, target_y))
         reward_predicted = model(obs).squeeze()
@@ -85,6 +85,7 @@ def parse_args():
     parser.add_argument('--dataset_length', type=int, default=200)   
     parser.add_argument('--total_timesteps', type=int, default=5_000_000) # The project description uses 5_000_000
     parser.add_argument('--random_seed', type=int, default=None)
+    parser.add_argument('--rl_lr', type=float, default=1e-3)
     args = parser.parse_args()
     return args
 
@@ -124,7 +125,7 @@ def main():
     # t_model = Test(f+1)
     # decoder_optimizer = torch.optim.Adam(t_model.parameters(), lr=args.learning_rate)
 
-    for epoch in range(args.num_epochs):
+    for epoch in range(args.num_epochs-1):
         running_loss = 0.0
         running_decoded_loss = 0.0
         num_batch = 0
@@ -164,22 +165,22 @@ def main():
     # set hyperparameters for PPO
     hyperparameters = {
         'timesteps_per_batch': 2048,
-                    'max_timesteps_per_episode': 200,
-                    'gamma': 0.99,
-                    'gae_lamda': 0.95,
-                    'n_updates_per_iteration': 10,
-                    'lr': 1e-3,
-                    'clip': 0.2,
-                    'render': True,
-                    'render_every_i': 10
+        'max_timesteps_per_episode': 200,
+        'gamma': 0.99,
+        'gae_lamda': 0.95,
+        'n_updates_per_iteration': 10,
+        'lr': args.rl_lr,
+        'clip': 0.2,
+        'render': True,
+        'render_every_i': 10
     }
    
     # Trains the RL model
-    # ppo = PPO(MLP_2, env, writer, **hyperparameters) # oracle
-    # ppo = PPO(MLP_2, env, writer, model.encoder, **hyperparameters)
+    # ppo = PPO(MLP_2, env, writer, device, **hyperparameters) # oracle
+    # ppo = PPO(MLP_2, env, writer, device, model.encoder, **hyperparameters)
     cnn = CNN().to(device)
-    ppo = PPO(MLP_2, env, writer, cnn, **hyperparameters)
-    # ppo = PPO(CNN_MLP, env, writer, **hyperparameters)
+    ppo = PPO(MLP_2, env, writer, device, cnn, **hyperparameters)
+    # ppo = PPO(CNN_MLP, env, writer, device, **hyperparameters)
 
     # Train the PPO model with a specified total timesteps
     ppo.learn(total_timesteps=args.total_timesteps)

@@ -121,6 +121,7 @@ class CNN(nn.Module):
         if detach:
             x.detach()
         return x.view(-1, 32*27*27)
+        # return x.flatten()
 
 
 class CNN_MLP(nn.Module):
@@ -266,7 +267,7 @@ class Decoder(nn.Module):
         self.tconvs.append(nn.ConvTranspose2d(4, 1, kernel_size=2, stride=2))
 
     def forward(self, x):
-        x = self.tfc(x).view(1, 128, 1, 1)
+        x = self.tfc(x).view(-1, 128, 1, 1)
         for i in range(6):
             # x = torch.relu(self.tconvs[i](x))
             x = torch.relu(self.tconvs[i](x))

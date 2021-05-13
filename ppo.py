@@ -19,7 +19,7 @@ from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 
 
 class PPO:
-    def __init__(self, policy_class, env, writer, encoder=None, **hyperparameters):
+    def __init__(self, policy_class, env, writer, device, encoder=None, **hyperparameters):
         """
             Initializes the PPO model, including hyperparameters.
             Parameters:
@@ -41,7 +41,7 @@ class PPO:
         self.act_dim = env.action_space.shape[0]
             
         # Set the encoder and writer
-        self.encoder = encoder
+        self.encoder = encoder.to(device)
         self.writer = writer
 
         # Record timesteps taken
@@ -55,6 +55,8 @@ class PPO:
         else:
             self.actor = policy_class(self.obs_dim, self.act_dim)
             self.critic = policy_class(self.obs_dim, 1)
+        self.actor.to(device)
+        self.critic.to(device)
 
         # Initialize optimizers for actor and critic
         # params = list(self.actor.parameters()) + list(self.log_std)
