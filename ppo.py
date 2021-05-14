@@ -368,6 +368,7 @@ class PPO:
 
         # Sample an action from the distribution
         action = dist.sample()
+        # print(action)
 
         # Calculate the log probability for that action
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)

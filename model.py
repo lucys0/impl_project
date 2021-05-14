@@ -53,7 +53,7 @@ class MLP(nn.Module):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float)
         hidden_layer = self.relu(self.fc1(x))
-        hidden_layer = self.relu(self.fc2(hidden_layer))
+        # hidden_layer = self.relu(self.fc2(hidden_layer))
         output_layer = self.fc3(hidden_layer)
         return output_layer
 
