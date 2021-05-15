@@ -269,8 +269,8 @@ class Decoder(nn.Module):
     def forward(self, x):
         x = self.tfc(x).view(-1, 128, 1, 1)
         for i in range(6):
-            # x = torch.relu(self.tconvs[i](x))
             x = torch.relu(self.tconvs[i](x))
+            # x = torch.sigmoid(self.tconvs[i](x))
 
         # output: (1, 1, 64, 64)
         # return torch.sigmoid(x)

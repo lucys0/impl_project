@@ -20,10 +20,10 @@ def train(model, batch, optimizer, decoder_optimizer):
     avg_loss = 0.0
     avg_decoded_loss = 0.0
 
-    # for obs, reward_targets in zip(batch['obs'], batch['rewards']):
-    for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
+    for obs, reward_targets in zip(batch['obs'], batch['rewards']):
+    # for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
         optimizer.zero_grad()
-        reward_targets = torch.stack((agent_x, agent_y, target_x, target_y))
+        # reward_targets = torch.stack((agent_x, agent_y, target_x, target_y))
         reward_predicted = model(obs).squeeze()
         loss = model.criterion(reward_predicted, reward_targets)
         avg_loss += loss
@@ -102,7 +102,7 @@ def main():
         torch.manual_seed(args.random_seed)
         np.random.seed(args.random_seed)
 
-    log_dir = 'runs/num_epochs=' + str(args.num_epochs) + 'env=' + args.env + '_time_steps=' + str(t) + '_frames=' + str(f) + '_lr=' + str(args.learning_rate) + '_batch_size=' + str(args.batch_size) + '_reward=' + args.reward + '_seed=' + str(args.random_seed) + ' ||' + time.strftime("%d-%m-%Y_%H-%M-%S")
+    log_dir = 'runs_decode/num_epochs=' + str(args.num_epochs) + 'env=' + args.env + '_time_steps=' + str(t) + '_frames=' + str(f) + '_lr=' + str(args.learning_rate) + '_batch_size=' + str(args.batch_size) + '_reward=' + args.reward + '_seed=' + str(args.random_seed) + ' ||' + time.strftime("%d-%m-%Y_%H-%M-%S")
     if not(os.path.exists(log_dir)):
         os.makedirs(log_dir)
     writer = SummaryWriter(log_dir=log_dir)

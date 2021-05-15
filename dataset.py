@@ -39,11 +39,11 @@ class TrainingDataset(Dataset):
             traj = dataset[i]
             for t in range(frames, time_steps):
                 data = AttrDict()
-                # data.rewards = traj['rewards'][reward]
-                data.agent_x = traj['rewards']['agent_x']
-                data.agent_y = traj['rewards']['agent_y']
-                data.target_x = traj['rewards']['target_x']
-                data.target_y = traj['rewards']['target_y']
+                data.rewards = traj['rewards'][reward]
+                # data.agent_x = traj['rewards']['agent_x']
+                # data.agent_y = traj['rewards']['agent_y']
+                # data.target_x = traj['rewards']['target_x']
+                # data.target_y = traj['rewards']['target_y']
                 data.obs = traj['images'][t-frames:t+1, 0, :, :].squeeze()
                 assert len(data.obs) == frames+1
                 data.states = traj['states'][t-frames:t+1, :].squeeze()
@@ -64,13 +64,14 @@ def dataloader(image_resolution, time_steps, batch_size, frames, reward, dataset
         max_seq_len=time_steps, # such that there is a reward target for each time step
         max_speed=0.05,      # total image range [0, 1]
         obj_size=0.2,       # size of objects, full images is 1.0
-        shapes_per_traj=2,      # number of shapes per trajectory
-        rewards=reward_class(reward),
-        # rewards=[reward_class(reward)],
+        # shapes_per_traj=2,      # number of shapes per trajectory
+        # rewards=reward_class(reward),
+        shapes_per_traj=1,
+        rewards=[reward_class(reward)],
         # length = dataset_length,
     )
-    gen = moving_sprites.DistractorTemplateMovingSpritesGenerator(spec)
-    # gen = moving_sprites.TemplateMovingSpritesGenerator(spec)
+    # gen = moving_sprites.DistractorTemplateMovingSpritesGenerator(spec)
+    gen = moving_sprites.TemplateMovingSpritesGenerator(spec)
     traj = gen.gen_trajectory()
     img = make_image_seq_strip([traj.images[None, :, None].repeat(3, axis=2).astype(np.float32)], sep_val=255.0).astype(np.uint8)  
     # cv2.imwrite("ground_truth.png", img[0].transpose(1, 2, 0))
