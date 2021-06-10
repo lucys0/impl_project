@@ -20,10 +20,10 @@ def train(model, batch, optimizer, decoder_optimizer):
     avg_loss = 0.0
     avg_decoded_loss = 0.0
 
-    for obs, reward_targets in zip(batch['obs'], batch['rewards']):
-    # for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
+    # for obs, reward_targets in zip(batch['obs'], batch['rewards']):
+    for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
         optimizer.zero_grad()
-        # reward_targets = torch.stack((agent_x, agent_y, target_x, target_y))
+        reward_targets = torch.stack((agent_x, agent_y, target_x, target_y))
         reward_predicted = model(obs).squeeze()
         loss = model.criterion(reward_predicted, reward_targets)
         avg_loss += loss
@@ -130,12 +130,12 @@ def main():
         running_decoded_loss = 0.0
         num_batch = 0
         for batch in dl:
-            loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer) 
+            loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer)
             running_loss += loss
             # decoded_loss, decoded_img = test(t_model, decoder_optimizer, batch)
             running_decoded_loss += decoded_loss
             num_batch += 1
-
+    
         # print or store data
         running_loss = running_loss / num_batch
         print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_loss))
@@ -153,6 +153,17 @@ def main():
             writer.add_image('decoded_epoch{}'.format(epoch), decoded_img.to(torch.uint8))
            
             # save_decod_img(decoded_img.unsqueeze(0).cpu().data, epoch)           
+
+    # save model
+    # save_dir = './model/num_epochs=' + str(args.num_epochs) + 'env=' + args.env + '_seed=' + str(args.random_seed) + '_||' + time.strftime("%d-%m-%Y_%H-%M-%S")
+    save_dir = './trained_models/'
+    # torch.save(model.encoder.state_dict(), save_dir)
+
+    save_path = os.path.join(save_dir, args.env)
+    if not(os.path.exists(save_path)):
+        os.makedirs(save_path)
+    torch.save(model.encoder.state_dict(), os.path.join(
+        save_path, 'seed=' + str(args.random_seed) + ".pt"))
 
     # decode and generate images with respect to reward functions
     output = model.test_decode(traj_images)
@@ -177,9 +188,9 @@ def main():
    
     # Trains the RL model
     # ppo = PPO(MLP_2, env, writer, device, **hyperparameters) # oracle
-    # ppo = PPO(MLP_2, env, writer, device, model.encoder, **hyperparameters)
-    cnn = CNN().to(device)
-    ppo = PPO(MLP_2, env, writer, device, cnn, **hyperparameters)
+    ppo = PPO(MLP_2, env, writer, device, model.encoder, **hyperparameters)
+    # cnn = CNN().to(device)
+    # ppo = PPO(MLP_2, env, writer, device, cnn, **hyperparameters)
     # ppo = PPO(CNN_MLP, env, writer, device, **hyperparameters)
 
     # Train the PPO model with a specified total timesteps
