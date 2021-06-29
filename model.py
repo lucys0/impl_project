@@ -232,10 +232,8 @@ class Model(nn.Module):
         output = []
         for t in range(self.T):
             # the input to encoder should be in (1, 1, 64, 64)
-            # print("\\\\", traj_images[t].max())
             z_t = self.encoder(traj_images[t][None, None, :], detach=True) #tensor(64,)
             decoded_img = self.decoder(z_t).squeeze()
-            # print("////", decoded_img.max())
             output.append(decoded_img.detach().numpy())
 
         return np.array(output)

@@ -16,9 +16,46 @@ import time
 from dataset import *
 from ppo import PPO
 
-def train(model, batch, optimizer, decoder_optimizer):
+# def train(model, batch, optimizer, decoder_optimizer):
+#     avg_loss = 0.0
+#     avg_decoded_loss = 0.0
+
+#     for obs, reward_targets in zip(batch['obs'], batch['rewards']):
+#     # for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
+#         optimizer.zero_grad()
+#         # reward_targets = torch.stack((agent_x, agent_y, target_x, target_y))
+#         reward_predicted = model(obs).squeeze()
+#         loss = model.criterion(reward_predicted, reward_targets)
+#         avg_loss += loss
+
+#         # loss.backward()
+#         # optimizer.step()
+    
+#     avg_loss.backward(retain_graph=True)
+#     optimizer.step()
+
+#     for obs in batch['obs']:
+#         decoder_optimizer.zero_grad()
+#         encoded_img = model.encoder(obs[-1][None, None, :].detach().clone())
+#         decoded_img = model.decoder(encoded_img).squeeze() 
+#         decoded_loss = model.criterion(decoded_img, obs[-1])
+#         avg_decoded_loss += decoded_loss
+                
+#         # decoded_loss.backward()
+#         # decoder_optimizer.step()
+
+#     avg_decoded_loss.backward()
+#     decoder_optimizer.step()
+
+#     l = len(batch['obs'])
+#     avg_loss = avg_loss / l
+#     avg_decoded_loss = avg_decoded_loss / l
+
+#     return avg_loss.item(), decoded_img[None, :], avg_decoded_loss.item()
+
+
+def train_encode(model, batch, optimizer):
     avg_loss = 0.0
-    avg_decoded_loss = 0.0
 
     # for obs, reward_targets in zip(batch['obs'], batch['rewards']):
     for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
@@ -28,30 +65,32 @@ def train(model, batch, optimizer, decoder_optimizer):
         loss = model.criterion(reward_predicted, reward_targets)
         avg_loss += loss
 
-        # loss.backward()
-        # optimizer.step()
-    
     avg_loss.backward(retain_graph=True)
     optimizer.step()
+
+    l = len(batch['obs'])
+    avg_loss = avg_loss / l
+
+    return avg_loss.item()
+
+def train_decode(model, batch, decoder_optimizer):
+    avg_decoded_loss = 0.0
 
     for obs in batch['obs']:
         decoder_optimizer.zero_grad()
         encoded_img = model.encoder(obs[-1][None, None, :].detach().clone())
-        decoded_img = model.decoder(encoded_img).squeeze() 
+        decoded_img = model.decoder(encoded_img).squeeze()
         decoded_loss = model.criterion(decoded_img, obs[-1])
         avg_decoded_loss += decoded_loss
-                
-        # decoded_loss.backward()
-        # decoder_optimizer.step()
 
     avg_decoded_loss.backward()
     decoder_optimizer.step()
 
     l = len(batch['obs'])
-    avg_loss = avg_loss / l
     avg_decoded_loss = avg_decoded_loss / l
 
-    return avg_loss.item(), decoded_img[None, :], avg_decoded_loss.item()
+    return decoded_img[None, :], avg_decoded_loss.item()
+
 
 def test(t_model, decoder_optimizer, batch):
     avg_decoded_loss = 0.0
@@ -125,40 +164,72 @@ def main():
     # t_model = Test(f+1)
     # decoder_optimizer = torch.optim.Adam(t_model.parameters(), lr=args.learning_rate)
 
+    # for epoch in range(args.num_epochs-1):
+    #     running_loss = 0.0
+    #     running_decoded_loss = 0.0
+    #     num_batch = 0
+    #     for batch in dl:
+    #         loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer)
+    #         running_loss += loss
+    #         # decoded_loss, decoded_img = test(t_model, decoder_optimizer, batch)
+    #         running_decoded_loss += decoded_loss
+    #         num_batch += 1
+    
+    #     # print or store data
+    #     running_loss = running_loss / num_batch
+    #     print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_loss))
+    #     train_loss.append(running_loss)
+
+    #     running_decoded_loss = running_decoded_loss / num_batch
+    #     # print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_decoded_loss)) # added
+    #     train_decoded_loss.append(running_decoded_loss)
+
+    #     writer.add_scalar('Loss/train', running_loss, epoch)
+    #     writer.add_scalar('Loss/decoded', running_decoded_loss, epoch)
+
+    #     if epoch % 5 == 0:           
+    #         decoded_img = decoded_img * 255.0
+    #         writer.add_image('decoded_epoch{}'.format(epoch), decoded_img.to(torch.uint8))
+           
+    #         # save_decod_img(decoded_img.unsqueeze(0).cpu().data, epoch)  
+
+    # train the encoder and decoder seperately
     for epoch in range(args.num_epochs-1):
         running_loss = 0.0
-        running_decoded_loss = 0.0
         num_batch = 0
         for batch in dl:
-            loss, decoded_img, decoded_loss = train(model, batch, optimizer, decoder_optimizer)
+            loss = train_encode(model, batch, optimizer)
             running_loss += loss
-            # decoded_loss, decoded_img = test(t_model, decoder_optimizer, batch)
-            running_decoded_loss += decoded_loss
             num_batch += 1
-    
+
         # print or store data
         running_loss = running_loss / num_batch
         print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_loss))
         train_loss.append(running_loss)
 
+        writer.add_scalar('Loss/train', running_loss, epoch)
+
+    for epoch in range(args.num_epochs-1):
+        running_decoded_loss = 0.0
+        num_batch = 0
+        for batch in dl:
+            decoded_img, decoded_loss = train_decode(model, batch, decoder_optimizer)
+            running_decoded_loss += decoded_loss
+            num_batch += 1
+
+        # print or store data
         running_decoded_loss = running_decoded_loss / num_batch
         # print('Epoch: {} \tLoss: {:.6f}'.format(epoch, running_decoded_loss)) # added
         train_decoded_loss.append(running_decoded_loss)
 
-        writer.add_scalar('Loss/train', running_loss, epoch)
         writer.add_scalar('Loss/decoded', running_decoded_loss, epoch)
-
-        if epoch % 5 == 0:           
+        if epoch % 5 == 0:
             decoded_img = decoded_img * 255.0
-            writer.add_image('decoded_epoch{}'.format(epoch), decoded_img.to(torch.uint8))
-           
-            # save_decod_img(decoded_img.unsqueeze(0).cpu().data, epoch)           
+            writer.add_image('decoded_epoch{}'.format(
+                epoch), decoded_img.to(torch.uint8))
 
     # save model
-    # save_dir = './model/num_epochs=' + str(args.num_epochs) + 'env=' + args.env + '_seed=' + str(args.random_seed) + '_||' + time.strftime("%d-%m-%Y_%H-%M-%S")
     save_dir = './trained_models/'
-    # torch.save(model.encoder.state_dict(), save_dir)
-
     save_path = os.path.join(save_dir, args.env)
     if not(os.path.exists(save_path)):
         os.makedirs(save_path)
@@ -172,6 +243,8 @@ def main():
     img = make_image_seq_strip([output[None, :, None].repeat(3, axis=2).astype(np.float32)], sep_val=255.0).astype(np.uint8)   
     writer.add_image('ground_truth', ground_truth)
     writer.add_image('test_decoded', img[0])
+
+    print("---------Done--------")
 
     # set hyperparameters for PPO
     hyperparameters = {
@@ -187,14 +260,14 @@ def main():
     }
    
     # Trains the RL model
-    # ppo = PPO(MLP_2, env, writer, device, **hyperparameters) # oracle
-    ppo = PPO(MLP_2, env, writer, device, model.encoder, **hyperparameters)
+    ppo = PPO(MLP_2, env, writer, device, encoder=None, **hyperparameters) # oracle
+    # ppo = PPO(MLP_2, env, writer, device, model.encoder, **hyperparameters)
     # cnn = CNN().to(device)
     # ppo = PPO(MLP_2, env, writer, device, cnn, **hyperparameters)
     # ppo = PPO(CNN_MLP, env, writer, device, **hyperparameters)
 
     # Train the PPO model with a specified total timesteps
-    ppo.learn(total_timesteps=args.total_timesteps)
+    # ppo.learn(total_timesteps=args.total_timesteps)
     writer.flush()
 
 

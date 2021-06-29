@@ -41,7 +41,7 @@ class PPO:
         self.act_dim = env.action_space.shape[0]
             
         # Set the encoder and writer
-        self.encoder = encoder.to(device)
+        # self.encoder = encoder.to(device)
         self.writer = writer
 
         # Record timesteps taken

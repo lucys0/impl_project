@@ -68,7 +68,6 @@ def dataloader(image_resolution, time_steps, batch_size, frames, reward, dataset
         rewards=reward_class(reward),
         # shapes_per_traj=1,
         # rewards=[reward_class(reward)],
-        # length = dataset_length,
     )
     gen = moving_sprites.DistractorTemplateMovingSpritesGenerator(spec)
     # gen = moving_sprites.TemplateMovingSpritesGenerator(spec)
