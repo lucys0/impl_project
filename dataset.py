@@ -64,7 +64,7 @@ def dataloader(image_resolution, time_steps, batch_size, frames, reward, dataset
         max_seq_len=time_steps, # such that there is a reward target for each time step
         max_speed=0.05,      # total image range [0, 1]
         obj_size=0.2,       # size of objects, full images is 1.0
-        shapes_per_traj=2,      # number of shapes per trajectory
+        shapes_per_traj=3,      # number of shapes per trajectory
         rewards=reward_class(reward),
         # shapes_per_traj=1,
         # rewards=[reward_class(reward)],
