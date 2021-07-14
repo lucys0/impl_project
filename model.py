@@ -226,7 +226,7 @@ class Model(nn.Module):
                 reward_predicted.append(r_t) 
             reward_predicted = torch.stack(reward_predicted, dim=0).squeeze() # (T,) 
             reward_predicted_tasks.append(reward_predicted)
-        # reward_predicted_tasks = torch.stack(reward_predicted_tasks, dim=0) # should be (K, T)
+        reward_predicted_tasks = torch.stack(reward_predicted_tasks, dim=0) # should be (K, T)
         return reward_predicted_tasks
                        
     def criterion(self, reward_predicted, reward_targets):

@@ -54,47 +54,65 @@ from ppo import PPO
 #     return avg_loss.item(), decoded_img[None, :], avg_decoded_loss.item()
 
 
-def train_encode(model, batch, optimizer_ax, optimizer_ay, optimizer_tx, optimizer_ty):
-    avg_loss_agent_x = 0.0
-    avg_loss_agent_y = 0.0
-    avg_loss_target_x = 0.0
-    avg_loss_target_y = 0.0
+# def train_encode(model, batch, optimizer_ax, optimizer_ay, optimizer_tx, optimizer_ty):
+#     avg_loss_agent_x = 0.0
+#     avg_loss_agent_y = 0.0
+#     avg_loss_target_x = 0.0
+#     avg_loss_target_y = 0.0
 
-    # for obs, reward_targets in zip(batch['obs'], batch['rewards']):
-    for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
-        optimizer_ax.zero_grad()
-        optimizer_ay.zero_grad()
-        optimizer_tx.zero_grad()
-        optimizer_ty.zero_grad()
-        # reward_targets = torch.stack((agent_x, agent_y, target_x, target_y))
-        reward_predicted = model(obs)
-        loss_agent_x = model.criterion(reward_predicted[0], agent_x)
-        loss_agent_y = model.criterion(reward_predicted[1], agent_y)
-        loss_target_x = model.criterion(reward_predicted[2], target_x)
-        loss_target_y = model.criterion(reward_predicted[3], target_y)
-        avg_loss_agent_x += loss_agent_x
-        avg_loss_agent_y += loss_agent_y
-        avg_loss_target_x += loss_target_x
-        avg_loss_target_y += loss_target_y
+#     # for obs, reward_targets in zip(batch['obs'], batch['rewards']):
+#     for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
+#         optimizer_ax.zero_grad()
+#         optimizer_ay.zero_grad()
+#         optimizer_tx.zero_grad()
+#         optimizer_ty.zero_grad()
+#         # reward_targets = torch.stack((agent_x, agent_y, target_x, target_y))
+#         reward_predicted = model(obs)
+#         loss_agent_x = model.criterion(reward_predicted[0], agent_x)
+#         loss_agent_y = model.criterion(reward_predicted[1], agent_y)
+#         loss_target_x = model.criterion(reward_predicted[2], target_x)
+#         loss_target_y = model.criterion(reward_predicted[3], target_y)
+#         avg_loss_agent_x += loss_agent_x
+#         avg_loss_agent_y += loss_agent_y
+#         avg_loss_target_x += loss_target_x
+#         avg_loss_target_y += loss_target_y
   
-    avg_loss_agent_x.backward(retain_graph=True)
-    avg_loss_agent_y.backward(retain_graph=True)
-    avg_loss_target_x.backward(retain_graph=True)
-    avg_loss_target_y.backward()
+#     avg_loss_agent_x.backward(retain_graph=True)
+#     avg_loss_agent_y.backward(retain_graph=True)
+#     avg_loss_target_x.backward(retain_graph=True)
+#     avg_loss_target_y.backward()
 
-    optimizer_ax.step()
-    optimizer_ay.step()
-    optimizer_tx.step()
-    optimizer_ty.step()
+#     optimizer_ax.step()
+#     optimizer_ay.step()
+#     optimizer_tx.step()
+#     optimizer_ty.step()
+
+#     l = len(batch['obs'])
+#     avg_loss_agent_x = avg_loss_agent_x / l
+#     avg_loss_agent_y = avg_loss_agent_y / l
+#     avg_loss_target_x = avg_loss_target_x / l
+#     avg_loss_target_y = avg_loss_target_y / l
+
+#     # return avg_loss_agent_x.item(), avg_loss_agent_y.item(), avg_loss_target_x.item(), avg_loss_target_y.item()
+#     return ((avg_loss_agent_x + avg_loss_agent_y + avg_loss_target_x + avg_loss_target_y)/4).item()
+
+def train_encode(model, batch, optimizer):
+    avg_loss = 0.0
+
+    for obs, agent_x, agent_y, target_x, target_y in zip(batch['obs'], batch['agent_x'], batch['agent_y'], batch['target_x'], batch['target_y']):
+        optimizer.zero_grad()
+        reward_targets = torch.stack((agent_x, agent_y, target_x, target_y))
+        reward_predicted = model(obs)
+        loss = model.criterion(reward_predicted, reward_targets)
+        avg_loss += loss
+
+    avg_loss.backward(retain_graph=True)
+    optimizer.step()
 
     l = len(batch['obs'])
-    avg_loss_agent_x = avg_loss_agent_x / l
-    avg_loss_agent_y = avg_loss_agent_y / l
-    avg_loss_target_x = avg_loss_target_x / l
-    avg_loss_target_y = avg_loss_target_y / l
+    avg_loss = avg_loss / l
 
-    # return avg_loss_agent_x.item(), avg_loss_agent_y.item(), avg_loss_target_x.item(), avg_loss_target_y.item()
-    return ((avg_loss_agent_x + avg_loss_agent_y + avg_loss_target_x + avg_loss_target_y)/4).item()
+    return avg_loss.item()
 
 def train_decode(model, batch, decoder_optimizer):
     avg_decoded_loss = 0.0
@@ -180,10 +198,11 @@ def main():
 
     model = Model(t, f+1, args.tasks, args.image_resolution, device).to(device)
     # make_dir()
-    optimizer_ax = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-    optimizer_ay = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-    optimizer_tx = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
-    optimizer_ty = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    # optimizer_ax = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    # optimizer_ay = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    # optimizer_tx = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
+    # optimizer_ty = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
     decoder_optimizer = torch.optim.Adam(model.decoder.parameters(), lr=args.learning_rate)
     train_loss = []
     train_decoded_loss = []
@@ -224,7 +243,8 @@ def main():
         running_loss = 0.0
         num_batch = 0
         for batch in dl:
-            loss = train_encode(model, batch, optimizer_ax, optimizer_ay, optimizer_tx, optimizer_ty)
+            # loss = train_encode(model, batch, optimizer_ax, optimizer_ay, optimizer_tx, optimizer_ty)
+            loss = train_encode(model, batch, optimizer)
             running_loss += loss
             num_batch += 1
 
