@@ -188,7 +188,13 @@ class Model(nn.Module):
         self.T = time_steps
         self.N = frames
         self.K = tasks
-        self.reward_heads = [MLP(input_size=image_resolution, output_size=1).to(device)] * tasks
+        # self.reward_heads = [MLP(input_size=image_resolution, output_size=1).to(device)] * tasks
+        reward_head_ax = MLP(input_size=image_resolution, output_size=1).to(device)
+        reward_head_ay = MLP(input_size=image_resolution, output_size=1).to(device)
+        reward_head_tx = MLP(input_size=image_resolution, output_size=1).to(device)
+        reward_head_ty = MLP(input_size=image_resolution, output_size=1).to(device)
+        self.reward_heads = list((
+            reward_head_ax, reward_head_ay, reward_head_tx, reward_head_ty))
         self.image_resolution = image_resolution
         self.device = device
         self.loss = nn.MSELoss()
@@ -220,7 +226,7 @@ class Model(nn.Module):
                 reward_predicted.append(r_t) 
             reward_predicted = torch.stack(reward_predicted, dim=0).squeeze() # (T,) 
             reward_predicted_tasks.append(reward_predicted)
-        reward_predicted_tasks = torch.stack(reward_predicted_tasks, dim=0) # should be (K, T)
+        # reward_predicted_tasks = torch.stack(reward_predicted_tasks, dim=0) # should be (K, T)
         return reward_predicted_tasks
                        
     def criterion(self, reward_predicted, reward_targets):
