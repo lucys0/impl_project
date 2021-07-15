@@ -79,4 +79,4 @@ def dataloader(image_resolution, time_steps, batch_size, frames, reward, dataset
     preprocessed_dataset = TrainingDataset(dataset, frames, time_steps, reward, dataset_length)
 
     dl = DataLoader(preprocessed_dataset, batch_size=batch_size, shuffle=True)
-    return dl, torch.from_numpy(traj.images.astype(np.float32) / 255), img[0]
+    return dl, torch.from_numpy(traj.images.astype(np.float32) / (255./2) - 1.0 ), img[0]

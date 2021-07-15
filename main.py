@@ -105,9 +105,11 @@ def train_encode(model, batch, optimizer):
         reward_predicted = model(obs)
         loss = model.criterion(reward_predicted, reward_targets)
         avg_loss += loss
+        loss.backward(retain_graph=True)
+        optimizer.step()
 
-    avg_loss.backward(retain_graph=True)
-    optimizer.step()
+    # avg_loss.backward(retain_graph=True)
+    # optimizer.step()
 
     l = len(batch['obs'])
     avg_loss = avg_loss / l
@@ -123,6 +125,8 @@ def train_decode(model, batch, decoder_optimizer):
         decoded_img = model.decoder(encoded_img).squeeze()
         decoded_loss = model.criterion(decoded_img, obs[-1])
         avg_decoded_loss += decoded_loss
+        # decoded_loss.backward()
+        # decoder_optimizer.step()
 
     avg_decoded_loss.backward()
     decoder_optimizer.step()
@@ -158,7 +162,7 @@ def parse_args():
     parser.add_argument('--time_steps', type=int, default=5)
     parser.add_argument('--tasks', type=int, default=4)
     parser.add_argument('--conditioning_frames', type=int, default=2)
-    parser.add_argument('--num_epochs', type=int, default=100)
+    parser.add_argument('--num_epochs', type=int, default=150)
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--env', type=str, default='Sprites-v1')
     parser.add_argument('--reward', type=str, default='follow')
@@ -293,20 +297,20 @@ def main():
     print("---------Done--------")
 
     # set hyperparameters for PPO
-    hyperparameters = {
-        'timesteps_per_batch': 2048,
-        'max_timesteps_per_episode': 200,
-        'gamma': 0.99,
-        'gae_lamda': 0.95,
-        'n_updates_per_iteration': 10,
-        'lr': args.rl_lr,
-        'clip': 0.2,
-        'render': True,
-        'render_every_i': 10
-    }
+    # hyperparameters = {
+    #     'timesteps_per_batch': 2048,
+    #     'max_timesteps_per_episode': 200,
+    #     'gamma': 0.99,
+    #     'gae_lamda': 0.95,
+    #     'n_updates_per_iteration': 10,
+    #     'lr': args.rl_lr,
+    #     'clip': 0.2,
+    #     'render': True,
+    #     'render_every_i': 10
+    # }
    
     # Trains the RL model
-    ppo = PPO(MLP_2, env, writer, device, encoder=None, **hyperparameters) # oracle
+    # ppo = PPO(MLP_2, env, writer, device, encoder=None, **hyperparameters) # oracle
     # ppo = PPO(MLP_2, env, writer, device, model.encoder, **hyperparameters)
     # cnn = CNN().to(device)
     # ppo = PPO(MLP_2, env, writer, device, cnn, **hyperparameters)
