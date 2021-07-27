@@ -59,7 +59,7 @@ class MLP(nn.Module):
 
 # Build a 2-layer feedforward neural network
 class MLP_2(nn.Module):
-    def __init__(self, input_size, output_size, hidden_units=32, is_actor=True):
+    def __init__(self, input_size, output_size, device, hidden_units=32, is_actor=True):
         super(MLP_2, self).__init__()
         self.fc1 = nn.Linear(input_size, hidden_units)
         self.fc2 = nn.Linear(hidden_units, output_size)
@@ -67,10 +67,12 @@ class MLP_2(nn.Module):
         self.relu = nn.ReLU()
         self.sigmoid = nn.Sigmoid()
         self.tanh = nn.Tanh()
+        self.device = device
 
     def forward(self, x):
         if isinstance(x, np.ndarray):
             x = torch.tensor(x, dtype=torch.float)
+        x = x.to(self.device)
         hidden_layer = self.relu(self.fc1(x))
         if self.is_actor:
             # [-1, 1]

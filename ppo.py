@@ -43,6 +43,7 @@ class PPO:
         # Set the encoder and writer
         self.encoder = encoder.to(device)
         self.writer = writer
+        self.device = device
 
         # Record timesteps taken
         self.t = 0
@@ -50,8 +51,8 @@ class PPO:
      # Initialize actor and critic networks
         # ALG STEP 1
         if self.encoder:
-            self.actor = nn.Sequential(self.encoder, policy_class(self.obs_dim, self.act_dim, is_actor=True))
-            self.critic = nn.Sequential(self.encoder, policy_class(self.obs_dim, 1, is_actor=False))
+            self.actor = nn.Sequential(self.encoder, policy_class(self.obs_dim, self.act_dim, device, is_actor=True))
+            self.critic = nn.Sequential(self.encoder, policy_class(self.obs_dim, 1, device, is_actor=False))
         else:
             self.actor = policy_class(self.obs_dim, self.act_dim)
             self.critic = policy_class(self.obs_dim, 1)
