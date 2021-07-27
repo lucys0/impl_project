@@ -15,7 +15,7 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 from dataset import *
 from ppo import PPO
-from envs import make_vec_envs
+# from envs import make_vec_envs
 import copy
 
 def train_encode(model, batch, optimizer):
@@ -109,7 +109,7 @@ def main():
         torch.manual_seed(args.seed)
         torch.cuda.manual_seed_all(args.seed)
 
-    if args.cuda and torch.cuda.is_available() and args.cuda_deterministic:
+    if torch.cuda.is_available():
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
 
@@ -119,7 +119,7 @@ def main():
     writer = SummaryWriter(log_dir=log_dir)
 
     torch.set_num_threads(1)
-    device = torch.device("cuda:0" if args.cuda else "cpu")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # initialize the environment
     env = gym.make(args.env)
@@ -128,7 +128,7 @@ def main():
 
     if args.load:
         load_dir = './trained_models/'
-        load_path = os.path.join(load_dir, args.env_name)
+        load_path = os.path.join(load_dir, args.env)
         encoder = Encoder()
         encoder.load_state_dict(torch.load(os.path.join(
             load_path, 'seed=' + str(args.seed) + ".pt")))
