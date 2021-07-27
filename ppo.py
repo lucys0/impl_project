@@ -39,7 +39,7 @@ class PPO:
         self.obs_dim = env.observation_space.shape[0]
         # self.obs_dim = 32 * 27 * 27 # cnn
         self.act_dim = env.action_space.shape[0]
-            
+
         # Set the encoder and writer
         self.encoder = encoder.to(device)
         self.writer = writer
@@ -47,12 +47,14 @@ class PPO:
 
         # Record timesteps taken
         self.t = 0
-        
+
      # Initialize actor and critic networks
         # ALG STEP 1
         if self.encoder:
-            self.actor = nn.Sequential(self.encoder, policy_class(self.obs_dim, self.act_dim, device, is_actor=True))
-            self.critic = nn.Sequential(self.encoder, policy_class(self.obs_dim, 1, device, is_actor=False))
+            self.actor = nn.Sequential(self.encoder, policy_class(
+                self.obs_dim, self.act_dim, device, is_actor=True))
+            self.critic = nn.Sequential(self.encoder, policy_class(
+                self.obs_dim, 1, device, is_actor=False))
         else:
             self.actor = policy_class(self.obs_dim, self.act_dim)
             self.critic = policy_class(self.obs_dim, 1)
@@ -69,7 +71,7 @@ class PPO:
 
         # Initialize the covariance matrix used to query the actor for actions
         # self.cov_var = torch.full(size=(self.act_dim,), fill_value=0.5)
-        # self.cov_mat = torch.diag(self.cov_var)       
+        # self.cov_mat = torch.diag(self.cov_var)
 
         # This logger will help us with printing out summaries of each iteration
         self.logger = {
@@ -94,7 +96,8 @@ class PPO:
         """
         print(
             f"Learning... Running {self.max_timesteps_per_episode} timesteps per episode, ", end='')
-        print(f"{self.timesteps_per_batch} timesteps per batch for a total of {total_timesteps} timesteps")
+        print(
+            f"{self.timesteps_per_batch} timesteps per batch for a total of {total_timesteps} timesteps")
         t_so_far = 0  # Timesteps simulated so far
         i_so_far = 0  # Iterations ran so far
         # ALG STEP 2
@@ -119,10 +122,13 @@ class PPO:
             self.logger['i_so_far'] = i_so_far
 
             # Calculate advantage at k-th iteration
+            batch_obs = batch_obs.to(self.device)
+            batch_acts = batch_acts.to(self.device)
             V, _ = self.evaluate(batch_obs, batch_acts)
             # ALG STEP 5
-            batch_returns = self.compute_returns(batch_rews, V.detach().numpy(), batch_masks)
-            A_k = batch_returns - V.detach()
+            batch_returns = self.compute_returns(
+                batch_rews, V.cpu().detach().numpy(), batch_masks)
+            A_k = batch_returns - V.cpu().detach()
 
             # Normalizing advantages to decrease the variance and makes
             # convergence much more stable and faster.
@@ -134,20 +140,23 @@ class PPO:
             for _ in range(self.n_updates_per_iteration):
                 data_generator = self.generator(
                     batch_obs, batch_acts, batch_log_probs, batch_returns, advantage)
-                
+
                 for sample in data_generator:
                     obs_sample, actions_sample, log_probs_sample, returns_sample, advantages_sample = sample
-                    
+
                     # Calculate V_phi and pi_theta(a_t | s_t)
-                    V, curr_log_probs = self.evaluate(obs_sample, actions_sample)
+                    V, curr_log_probs = self.evaluate(
+                        obs_sample, actions_sample)
 
                     # Calculate the ratio pi_theta(a_t | s_t) / pi_theta_k(a_t | s_t)
-                    ratios = torch.exp(curr_log_probs - log_probs_sample)
-                    
+                    ratios = torch.exp(curr_log_probs.to(
+                        self.device) - log_probs_sample.to(self.device))
+
                     # Calculate surrogate losses.
-                    surr1 = ratios * advantages_sample
-                    surr2 = torch.clamp(ratios, 1 - self.clip, 1 +
-                                        self.clip) * advantages_sample
+                    surr1 = ratios.to(self.device) * \
+                        advantages_sample.to(self.device)
+                    surr2 = torch.clamp(ratios.to(self.device), 1 - self.clip, 1 +
+                                        self.clip) * advantages_sample.to(self.device)
 
                     # Calculate actor and critic losses.
                     # NOTE: take the negative min of the surrogate losses because we're trying to maximize
@@ -155,29 +164,32 @@ class PPO:
                     # performance function maximizes it.
                     actor_loss = (-torch.min(surr1, surr2)).mean()
                     # clipped = torch.min(surr1, surr2)
-                    # print("----", surr1.shape)   
-                    bool_tensor = torch.all(torch.eq(surr1, surr2), dim=1).squeeze()
-                    false_values = bool_tensor.masked_select(bool_tensor == False)
+                    # print("----", surr1.shape)
+                    bool_tensor = torch.all(
+                        torch.eq(surr1, surr2), dim=1).squeeze()
+                    false_values = bool_tensor.masked_select(
+                        bool_tensor == False)
                     false_num = len(false_values)
                     samples_get_clipped += false_num
-                    
+
                     # actor_loss = -clipped.mean()
                     self.actor_optim.zero_grad()
-                    
-                    critic_loss = nn.MSELoss()(V, returns_sample)
+
+                    critic_loss = nn.MSELoss()(V.to(self.device), returns_sample.to(self.device))
                     self.critic_optim.zero_grad()
-                    
+
                     actor_loss.backward(retain_graph=True)
-                    critic_loss.backward()                   
-                    
-                    self.actor_optim.step()  
-                    self.critic_optim.step()                       
+                    critic_loss.backward()
+
+                    self.actor_optim.step()
+                    self.critic_optim.step()
 
                     # Log actor and critic loss
-                    self.logger['actor_losses'].append(actor_loss.detach())
-                    self.logger['critic_losses'].append(critic_loss.detach())
-            
-            
+                    self.logger['actor_losses'].append(
+                        actor_loss.cpu().detach())
+                    self.logger['critic_losses'].append(
+                        critic_loss.cpu().detach())
+
             # 32 is the number of sampled batches, 64 is the mini_batch_size
             samples_get_clipped /= (self.n_updates_per_iteration * 32 * 64)
             self.logger['clipped_fraction'] = samples_get_clipped
@@ -191,13 +203,14 @@ class PPO:
                 print('\nBeginning logging procedure...')
                 # Need [N, T, C, H, W] input tensor for video logging
                 video = torch.tensor(batch_image_obs).unsqueeze(0).unsqueeze(2)
-                self.writer.add_video('{}'.format('train_rollouts'), video, i_so_far-1, fps=10)
+                self.writer.add_video('{}'.format(
+                    'train_rollouts'), video, i_so_far-1, fps=10)
 
     def generator(self, batch_obs, batch_acts, batch_log_probs, batch_returns, A_k):
         num_mini_batch = 32
-        mini_batch_size = self.timesteps_per_batch // num_mini_batch # 2048/32
+        mini_batch_size = self.timesteps_per_batch // num_mini_batch  # 2048/32
         batch_size = self.timesteps_per_batch
-        
+
         sampler = BatchSampler(
             SubsetRandomSampler(range(batch_size)),
             mini_batch_size,
@@ -258,12 +271,14 @@ class PPO:
 
                 # Track observations in this batch
                 # if self.encoder:
-                    # obs = self.encoder(obs[None, None, :]).detach().numpy()
-                    # obs = self.encoder(obs[None, None, :], detach=True).detach().numpy()        
+                # obs = self.encoder(obs[None, None, :]).detach().numpy()
+                # obs = self.encoder(obs[None, None, :], detach=True).detach().numpy()
                 # obs = torch.from_numpy(obs[None, :]).float()
                 batch_obs.append(obs)
 
                 # Calculate action and make a step in the env.
+                if isinstance(obs, np.ndarray):
+                 obs = torch.tensor(obs, dtype=torch.float).to(self.device)
                 action, log_prob, entropy = self.get_action(obs)
                 obs, rew, done, _ = self.env.step(action)
 
@@ -287,7 +302,7 @@ class PPO:
 
         # Reshape data as tensors in the shape specified in function description, before returning
         # if isinstance(batch_obs[0], torch.Tensor):
-        # 	batch_obs = torch.stack(batch_obs, dim=0)       
+        # 	batch_obs = torch.stack(batch_obs, dim=0)
         # else:
         batch_obs = torch.tensor(batch_obs, dtype=torch.float)
         batch_acts = torch.tensor(batch_acts, dtype=torch.float)
@@ -328,7 +343,7 @@ class PPO:
         batch_rtgs = torch.tensor(batch_rtgs, dtype=torch.float)
 
         return batch_rtgs
-    
+
     def compute_returns(self, batch_rews, V, batch_masks):
         """
             Compute the GAE of each timestep in a batch given the rewards.
@@ -343,8 +358,10 @@ class PPO:
         V = np.append(V, V[-1])
         gae = 0
         for step in reversed(range(len(batch_rews))):
-            delta = batch_rews[step] + self.gamma * V[step + 1] * batch_masks[step + 1] - V[step]
-            gae = delta + self.gamma * self.gae_lambda * batch_masks[step + 1] * gae
+            delta = batch_rews[step] + self.gamma * \
+                V[step + 1] * batch_masks[step + 1] - V[step]
+            gae = delta + self.gamma * \
+                self.gae_lambda * batch_masks[step + 1] * gae
             batch_returns.insert(0, gae + V[step])
 
         # Convert the batch_returns into a tensor
@@ -362,13 +379,13 @@ class PPO:
                 log_prob - the log probability of the selected action in the distribution
         """
         # Query the actor network for a mean action
-        mean = self.actor(obs)
-        
+        mean = self.actor(obs).to(self.device)
+
         # Create a distribution with the mean action and std from the covariance matrix above.
-        dist = Normal(mean, torch.exp(self.log_std))
+        dist = Normal(mean, torch.exp(self.log_std).to(self.device))
 
         # Sample an action from the distribution
-        action = dist.sample()
+        action = dist.sample().to(self.device)
         # print(action)
 
         # Calculate the log probability for that action
@@ -378,7 +395,7 @@ class PPO:
         entropy = dist.entropy().mean()
 
         # Return the sampled action and the log probability of that action in our distribution
-        return action.detach().numpy(), log_prob.detach().numpy(), entropy.detach().numpy()
+        return action.cpu().detach().numpy(), log_prob.cpu().detach().numpy(), entropy.cpu().detach().numpy()
 
     def evaluate(self, batch_obs, batch_acts):
         """
@@ -398,8 +415,8 @@ class PPO:
         V = self.critic(batch_obs).squeeze()
 
         # Calculate the log probabilities of batch actions using most recent actor network.
-        mean = self.actor(batch_obs)
-        dist = Normal(mean, torch.exp(self.log_std))
+        mean = self.actor(batch_obs).to(self.device)
+        dist = Normal(mean, torch.exp(self.log_std).to(self.device))
         log_probs = dist.log_prob(batch_acts).sum(-1, keepdim=True)
 
         # Return the value vector V of each observation in the batch
@@ -466,17 +483,20 @@ class PPO:
         clipped_fraction = self.logger['clipped_fraction']
         # avg_ep_rews = np.mean([np.sum(rew)
         #                       for rew in self.logger['batch_rews']])
-        avg_ep_rews = np.sum(self.logger['batch_rews']) / len(self.logger['batch_lens'])
+        avg_ep_rews = np.sum(
+            self.logger['batch_rews']) / len(self.logger['batch_lens'])
         avg_actor_loss = np.mean([losses.float().mean()
                                  for losses in self.logger['actor_losses']])
         avg_critic_loss = np.mean([losses.float().mean()
                                   for losses in self.logger['critic_losses']])
         avg_entropy = np.mean(self.logger['batch_entropy'])
-        
+
         # print("---", avg_ep_rews)
-        self.writer.add_scalar('Average Episodic Return', avg_ep_rews, i_so_far)
+        self.writer.add_scalar('Average Episodic Return',
+                               avg_ep_rews, i_so_far)
         self.writer.add_scalar('Average Actor Loss', avg_actor_loss, i_so_far)
-        self.writer.add_scalar('Average Critic Loss', avg_critic_loss, i_so_far)
+        self.writer.add_scalar('Average Critic Loss',
+                               avg_critic_loss, i_so_far)
         self.writer.add_scalar('Average Policy Entropy', avg_entropy, i_so_far)
         self.writer.add_scalar('Clipped portion', clipped_fraction, i_so_far)
 
@@ -505,4 +525,3 @@ class PPO:
         self.logger['batch_lens'] = []
         self.logger['clipped_fraction'] = []
         self.logger['batch_entropy'] = []
-
