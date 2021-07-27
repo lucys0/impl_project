@@ -59,23 +59,6 @@ def train_decode(model, batch, decoder_optimizer):
     return decoded_img[None, :], avg_decoded_loss.item()
 
 
-def test(t_model, decoder_optimizer, batch):
-    avg_decoded_loss = 0.0
-
-    for obs, states in zip(batch['obs'], batch['states']):
-        decoder_optimizer.zero_grad()
-        decoded = t_model(states.repeat(1, 32))  # (N, 64) -> (N, 64, 64)
-        decoded_loss = t_model.criterion(decoded, obs)
-        avg_decoded_loss += decoded_loss
-                
-    avg_decoded_loss.backward()
-    decoder_optimizer.step()
-
-    l = len(batch['obs'])
-    avg_decoded_loss = avg_decoded_loss / l
-
-    return decoded_loss, decoded[-1][None, :]
-
 # argument parser
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -151,7 +134,6 @@ def main():
             running_loss = 0.0
             num_batch = 0
             for batch in dl:
-                # loss = train_encode(model, batch, optimizer_ax, optimizer_ay, optimizer_tx, optimizer_ty)
                 loss = train_encode(model, batch, optimizer)
                 running_loss += loss
                 num_batch += 1
@@ -178,7 +160,7 @@ def main():
 
             writer.add_scalar('Loss/decoded', running_decoded_loss, epoch)
             if epoch % 5 == 0:
-                decoded_img = decoded_img * 255.0
+                decoded_img = (decoded_img + 1.0) * (255./2)
                 writer.add_image('decoded_epoch{}'.format(
                     epoch), decoded_img.to(torch.uint8))
 
@@ -188,11 +170,11 @@ def main():
         if not(os.path.exists(save_path)):
             os.makedirs(save_path)
         torch.save(model.encoder.state_dict(), os.path.join(
-            save_path, 'seed=' + str(args.random_seed) + ".pt"))
+            save_path, 'seed=' + str(args.seed) + ".pt"))
 
         # decode and generate images with respect to reward functions
         output = model.test_decode(traj_images)
-        output = output * 255
+        output = (output + 1.0) * (255./2)
 
         img = make_image_seq_strip([output[None, :, None].repeat(3, axis=2).astype(np.float32)], sep_val=255.0).astype(np.uint8)   
         writer.add_image('ground_truth', ground_truth)
