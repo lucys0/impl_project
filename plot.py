@@ -1,54 +1,49 @@
 import matplotlib.pyplot as plt
-import matplotlib as mpl
 import numpy as np
-from matplotlib.font_manager import FontProperties
-import csv
 import pandas as pd
-import seaborn as sns
-sns.set()
+from scipy.interpolate import UnivariateSpline
 
-'''Read csv file '''
-
-
-def readcsv(files):
-    csvfile = open(files, 'r')
-    plots = csv.reader(csvfile, delimiter=',')
-    x = []
-    y = []
-    for row in plots:
-        y.append((row[2]))
-        x.append((row[1]))
-    return x, y
+# def readcsv(files):
+#     csvfile = open(files, 'r')
+#     plots = csv.reader(csvfile, delimiter=',')
+#     x = []
+#     y = []
+#     for row in plots:
+#         y.append((row[2]))
+#         x.append((row[1]))
+#     return x, y
 
 
-# mpl.rcParams['font.family'] = 'sans-serif'
-# mpl.rcParams['font.sans-serif'] = 'NSimSun,Times New Roman'
+def plot(file_path, label, smoothing_coef=0.00115):
+    df = pd.read_csv(file_path)
 
+    # Determine smoothing factor from rule of thumb (use f = 0.05)
+    smooth_factor = smoothing_coef * (df["Value"] ** 2).sum()
 
-plt.figure()
-# x1, y1 = readcsv("plots/v1-oracle.csv")
-# plt.plot(x1, y1, color='grey', label='oracle')
+    # Set up an scipy.interpolate.UnivariateSpline instance
+    x = df["Step"].values
+    y = df["Value"].values
+    spl = UnivariateSpline(x, y, s=smooth_factor)
 
-# x2, y2 = readcsv("plots/v1-cnn.csv")
-# plt.plot(x2, y2, color='green', label='cnn')
+    # spl is now a callable function
+    x_spline = np.linspace(x[0], x[-1], 400)
+    y_spline = spl(x_spline)
 
-# x3, y3 = readcsv("plots/v1-image-scratch.csv")
-# plt.plot(x3, y3, color='blue', label='image_scratch')
+    # Plot results
+    plt.plot(x_spline, y_spline, label=label, lw=2)
 
-# x4, y4 = readcsv("plots/v1-reward_prediction_finetune.csv")
-# plt.plot(x4, y4, color='red', label='reward_prefiction_finetune')
+plt.figure(figsize=(11, 6))
+with plt.style.context('seaborn-darkgrid'):
+    plot("plots/v0-oracle.csv", label='oracle', smoothing_coef=0.0003)
+    plot("plots/v0-image_scratch.csv", label='image_scratch', smoothing_coef=0.00135)
+    plot("plots/v0-cnn.csv", label='cnn', smoothing_coef=0.0014)
+    plot("plots/v0-reward_prediction_finetune.csv", label='reward_prefiction_finetune', smoothing_coef=0.004)
 
-data = pd.read_csv("plots/v1-cnn.csv")
-sns.kdeplot(data=data, x="steps", y="values")
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.xlabel('Steps', fontsize=14)
+    plt.ylabel('Value', fontsize=14)
+    plt.legend(fontsize=14)
+    plt.title('Follow (0 distractor)')
 
-# plt.xticks(fontsize=16)
-# plt.yticks(fontsize=16)
-# # plt.xticks([0, 1e6, 2e6, 3e6, 4e6, 5e6])
-# # plt.yticks([0, 10, 20, 30])
-
-# # plt.ylim(22, 36)
-# # plt.xlim(0, 5000000)
-# plt.xlabel('Steps', fontsize=20)
-# plt.ylabel('Value', fontsize=20)
-# plt.legend(fontsize=16)
 plt.show()
